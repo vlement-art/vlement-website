@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vlement J Rodrigues | Gallery</title>
+<meta name="description" content="Museum-style gallery for original paintings and limited edition prints by Vlement J Rodrigues.">
+<style>
+:root{
+ --bg:#f8f6f1;--card:#fff;--text:#191919;--muted:#6d6d6d;--gold:#a8864a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:5rem 1.5rem 3rem;text-align:center}
+h1{font:400 clamp(2.2rem,5vw,4rem) Georgia,serif;font-style:italic;margin:.2rem 0}
+.sub{letter-spacing:.25em;text-transform:uppercase;font-size:.72rem;color:var(--muted)}
+.toolbar{display:flex;justify-content:center;gap:.75rem;flex-wrap:wrap;padding:0 1rem 2rem}
+.toolbar input,.toolbar select{padding:.6rem .8rem;border:1px solid #ddd;background:white}
+.grid{max-width:1300px;margin:auto;padding:0 1.5rem 4rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:3rem}
+.card{background:var(--card);padding:1rem;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.08);transition:.25s}
+.card:hover{transform:translateY(-5px)}
+.frame{background:#fff;padding:14px}
+.frame img{display:block;width:100%;height:auto;object-fit:contain;background:#efefef;cursor:pointer}
+.label{text-align:left;padding-top:1rem}
+.title{font:400 1.5rem Georgia,serif;font-style:italic}
+.artist{margin:.2rem 0;color:var(--muted)}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-top:.8rem;font-size:.92rem}
+.status{display:inline-block;margin-top:.8rem;padding:.25rem .6rem;border:1px solid var(--gold);color:var(--gold)}
+footer{text-align:center;padding:3rem 1rem;border-top:1px solid #ddd;color:var(--muted)}
+dialog{border:none;padding:0;background:#000;max-width:95vw}
+dialog::backdrop{background:rgba(0,0,0,.85)}
+dialog img{max-width:95vw;max-height:95vh}
+.dark{--bg:#121212;--card:#1c1c1c;--text:#f3f3f3;--muted:#b8b8b8}
+button{padding:.6rem .9rem}
+</style>
+</head>
+<body>
+<header>
+<h1 contenteditable>Vlement J Rodrigues</h1>
+<p>Original Paintings & Limited Edition Prints</p>
+</header>
+
+<div class="toolbar">
+<input placeholder="Search artworks">
+<select><option>All collections</option><option>Yellow Balloon</option></select>
+<button onclick="document.body.classList.toggle('dark')">Dark mode</button>
+</div>
+
+<section class="grid">
+
+<!-- ARTWORK 1 -->
+<article class="card">
+<div class="frame">
+<img src="https://via.placeholder.com/900x1200/f2f2f2/777?text=Artwork" onclick="viewer(this.src)">
+</div>
+<div class="label">
+<div class="title" contenteditable>Untitled Artwork</div>
+<div class="artist">Vlement J Rodrigues · 2026</div>
+<div class="meta">
+<div><strong>Medium</strong><br>Oil on Linen</div>
+<div><strong>Dimensions</strong><br>77 × 57.4 × 2 cm</div>
+<div><strong>Collection</strong><br>Yellow Balloon</div>
+<div><strong>Edition</strong><br>Original</div>
+<div><strong>ID</strong><br>VLMT-2026-001</div>
+<div><strong>Certificate</strong><br>Included</div>
+</div>
+<div class="status">Available</div>
+<p>A short description of the artwork can be added here.</p>
+</div>
+</article>
+
+<!-- Add more <article class="card">...</article> blocks here to add more artworks -->
+
+</section>
+
+<footer>© 2026 Vlement J Rodrigues. All rights reserved.</footer>
+
+<dialog id="lightbox" onclick="this.close()"><img id="big"></dialog>
+
+<script>
+function viewer(src){
+ big.src=src;
+ lightbox.showModal();
+}
+</script>
+</body>
+</html>

@@ -240,14 +240,14 @@
     .artwork-image-button {
       display: block;
       width: 100%;
-      padding: 0.75rem;
+      padding: 0.25rem;
       border: 0;
       background: transparent;
     }
     .artwork-image {
       display: block;
       width: 100%;
-      aspect-ratio: 1 / 1.2;
+      aspect-ratio: 4 / 5;
       object-fit: contain;
       background: color-mix(in srgb, var(--paper) 75%, #888 25%);
     }
@@ -339,17 +339,27 @@
       color: var(--muted);
     }
     .contact-links {
-      display: flex;
-      gap: 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
       margin-top: 1rem;
     }
-    .contact-links a {
-      text-decoration: none;
-      font-size: .78rem;
+    .contact-link-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .contact-link-item label {
+      font-size: .68rem;
       letter-spacing: .08em;
       text-transform: uppercase;
+      color: var(--muted);
     }
-    .contact-links a:hover {
+    .contact-link-item a {
+      text-decoration: none;
+      font-size: .9rem;
+    }
+    .contact-link-item a:hover {
       color: var(--accent);
     }
 
@@ -409,7 +419,7 @@
       .toolbar { grid-template-columns: 1fr; }
       .section-heading { align-items: start; flex-direction: column; }
       .contact-inner { align-items: start; flex-direction: column; }
-      .contact-links { flex-direction: column; gap: 0.5rem; }
+      .contact-links { grid-template-columns: 1fr; gap: 1rem; }
       .site-footer { flex-direction: column; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -558,8 +568,14 @@
           <h2 id="contact-title">Find a piece to return to.</h2>
           <p>For availability, shipping and studio enquiries, <a href="mailto:sales@vlement.com">contact the artist</a>.</p>
           <div class="contact-links">
-            <a href="https://instagram.com/vlement_art" target="_blank" rel="noopener">Instagram</a>
-            <a href="mailto:sales@vlement.com">Email</a>
+            <div class="contact-link-item">
+              <label>Instagram</label>
+              <a href="https://instagram.com/vlement_art" target="_blank" rel="noopener">vlement_art</a>
+            </div>
+            <div class="contact-link-item">
+              <label>Email</label>
+              <a href="mailto:sales@vlement.com">sales@vlement.com</a>
+            </div>
           </div>
         </div>
       </div>

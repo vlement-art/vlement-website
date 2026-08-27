@@ -94,6 +94,96 @@
       font-size: .75rem;
     }
 
+    /* ========================================= VLEMENT — NEWS / EXHIBITION BANNER ========================================= */
+
+    .vlement-news {
+      width: 100%;
+      max-width: 900px;
+      margin: 28px auto 42px;
+      padding: 14px 0 15px;
+      border-top: 1px solid rgba(0, 0, 0, 0.18);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+      font-family: inherit;
+    }
+
+    body.is-dark .vlement-news {
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .news-label {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.55;
+      margin-bottom: 9px;
+    }
+
+    .news-item {
+      position: relative;
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      text-decoration: none;
+      color: inherit;
+      transition: opacity 0.25s ease;
+    }
+
+    .news-item:hover {
+      opacity: 0.55;
+    }
+
+    .news-title {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+
+    .news-details {
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      opacity: 0.62;
+    }
+
+    .news-arrow {
+      margin-left: auto;
+      font-size: 16px;
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    /* Mobile */
+
+    @media (max-width: 600px) {
+      .vlement-news {
+        margin: 22px 0 32px;
+        padding: 13px 0 14px;
+      }
+
+      .news-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 4px 10px;
+      }
+
+      .news-title {
+        font-size: 15px;
+      }
+
+      .news-details {
+        grid-column: 1;
+        font-size: 10px;
+      }
+
+      .news-arrow {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        align-self: center;
+      }
+    }
+
+    /* ========================================= END BANNER ========================================= */
+
     .hero {
       width: min(920px, calc(100% - 2.5rem));
       margin: 0 auto;
@@ -240,15 +330,16 @@
     .artwork-image-button {
       display: block;
       width: 100%;
-      padding: 0.4rem;
+      padding: 0.25rem;
       border: 0;
-      background: color-mix(in srgb, var(--paper) 75%, #888 25%);
+      background: transparent;
     }
     .artwork-image {
       display: block;
       width: 100%;
-      height: auto;
-      background: transparent;
+      aspect-ratio: 4 / 5;
+      object-fit: contain;
+      background: color-mix(in srgb, var(--paper) 75%, #888 25%);
     }
     .artwork-info { padding: 0 1.25rem 1.35rem; }
     .artwork-title {
@@ -444,6 +535,16 @@
   </header>
 
   <main>
+    <!-- EXHIBITIONS BANNER -->
+    <section class="vlement-news" aria-label="Current exhibitions">
+      <p class="news-label">Exhibitions</p>
+      <a href="https://www.sothebys.com/en/digital-catalogues/the-artists-among-us-1?locale=en" target="_blank" rel="noopener noreferrer" class="news-item">
+        <span class="news-title">The Artists Among Us</span>
+        <span class="news-details">Sotheby's · London · 17–28 August 2026</span>
+        <span class="news-arrow">→</span>
+      </a>
+    </section>
+
     <section class="hero" aria-labelledby="page-title">
       <p class="eyebrow">London · Painting / Mixed Media / Printmaking</p>
       <h1 id="page-title">Vlement J Rodrigues</h1>

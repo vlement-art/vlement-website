@@ -330,16 +330,17 @@
     .artwork-image-button {
       display: block;
       width: 100%;
-      padding: 0.25rem;
+      padding: 0.5rem;
       border: 0;
-      background: transparent;
+      background: color-mix(in srgb, var(--paper) 75%, #888 25%);
     }
     .artwork-image {
       display: block;
       width: 100%;
-      aspect-ratio: 4 / 5;
+      height: auto;
+      aspect-ratio: auto;
       object-fit: contain;
-      background: color-mix(in srgb, var(--paper) 75%, #888 25%);
+      background: transparent;
     }
     .artwork-info { padding: 0 1.25rem 1.35rem; }
     .artwork-title {
@@ -586,12 +587,12 @@
 
       <div class="artwork-grid" id="artworkGrid">
         <!-- Keep this list limited to finished works. Add new cards only when the image and copy are ready. -->
-        <article class="artwork-card" data-title="Nunca dejes que la luz se apague" data-medium="Hahnemühle Photo Rag Giclée" data-collection="Yellow Balloon">
-          <button class="artwork-image-button" type="button" data-image="images/Final6.JPG" data-alt="Nunca dejes que la luz se apague" data-title="Nunca dejes que la luz se apague">
-            <img class="artwork-image" src="images/Final6.JPG" alt="Nunca dejes que la luz se apague" width="1200" height="1600" loading="lazy" decoding="async">
+        <article class="artwork-card" data-title="Nunca dejas que la luz se apague" data-medium="Hahnemühle Photo Rag Giclée" data-collection="Yellow Balloon">
+          <button class="artwork-image-button" type="button" data-image="images/Final6.JPG" data-alt="Nunca dejas que la luz se apague" data-title="Nunca dejas que la luz se apague">
+            <img class="artwork-image" src="images/Final6.JPG" alt="Nunca dejas que la luz se apague" width="1200" height="1600" loading="lazy" decoding="async">
           </button>
           <div class="artwork-info">
-            <h3 class="artwork-title">Nunca dejes que la luz se apague</h3>
+            <h3 class="artwork-title">Nunca dejas que la luz se apague</h3>
             <p class="artwork-byline">Vlement J Rodrigues · 2026</p>
             <dl class="artwork-meta">
               <div><dt>Medium</dt><dd>Hahnemühle Photo Rag Giclée</dd></div>

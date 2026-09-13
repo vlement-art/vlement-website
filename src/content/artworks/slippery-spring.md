@@ -8,7 +8,7 @@ collection: "Yellow Balloon"
 summary: "A seasonal exploration capturing the delicate transition of spring, its ephemeral beauty and subtle complexities."
 image: "/images/artwork/slippery-spring.webp"
 thumbnail: "/images/thumbnails/slippery-spring.webp"
-altText: "Giclée print titled Slippery Spring, a soft-toned composition suggesting a seasonal transition"
+altText: "Flower artwork titled Slippery Spring"
 featured: true
 available: true
 price: "£110"

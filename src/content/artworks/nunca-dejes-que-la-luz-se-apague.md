@@ -8,7 +8,7 @@ collection: "Yellow Balloon"
 summary: "A reminder to hold onto light and hope, presented as a Hahnemühle Photo Rag Giclée print."
 image: "/images/artwork/nunca-dejes-que-la-luz-se-apague.webp"
 thumbnail: "/images/thumbnails/nunca-dejes-que-la-luz-se-apague.webp"
-altText: "Giclée print titled Nunca dejes que la luz se apague, a warm-toned figurative composition centred on a glowing light source"
+altText: "Candle artwork titled No Dejes Que la Luz Se Apague"
 featured: true
 available: true
 price: "£110"

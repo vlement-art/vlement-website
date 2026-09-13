@@ -8,7 +8,7 @@ collection: "Yellow Balloon"
 summary: "A work about the emotional weight of misinterpretation, and the desire to be understood rather than defined by others."
 image: "/images/artwork/sad-bunny.webp"
 thumbnail: "/images/thumbnails/sad-bunny.webp"
-altText: "Oil painting on MDF titled Sad Bunny, a close portrait of a rabbit-like figure with large, melancholy eyes"
+altText: "Oil painting on MDF titled Sad Bunny, showing a rabbit on a white T-shirt"
 featured: true
 available: true
 price: "£1,500"

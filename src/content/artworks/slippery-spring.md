@@ -15,4 +15,4 @@ price: "£110"
 displayOrder: 3
 ---
 
-A seasonal exploration that captures the delicate transition of spring with its ephemeral beauty and subtle complexities. Gallery proof 2 of 2, from an edition of 50. Certificate of authenticity included.
+A seasonal exploration that captures the delicate transition of spring with its ephemeral beauty and subtle complexities. Edition of 50. Certificate of authenticity included.

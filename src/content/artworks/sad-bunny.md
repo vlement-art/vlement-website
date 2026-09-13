@@ -5,7 +5,7 @@ medium: "Oil on MDF"
 dimensions: "77 × 57.4 cm / 30.32 × 22.6 in"
 category: "Original painting"
 collection: "Yellow Balloon"
-summary: "An emotionally evocative portrait capturing vulnerability and melancholy through the expressive eyes of a gentle subject."
+summary: "A work about the emotional weight of misinterpretation, and the desire to be understood rather than defined by others."
 image: "/images/artwork/sad-bunny.webp"
 thumbnail: "/images/thumbnails/sad-bunny.webp"
 altText: "Oil painting on MDF titled Sad Bunny, a close portrait of a rabbit-like figure with large, melancholy eyes"
@@ -15,4 +15,4 @@ price: "£1,500"
 displayOrder: 2
 ---
 
-An emotionally evocative portrait capturing vulnerability and melancholy through the expressive eyes of a gentle subject. Original work, one of one. Certificate of authenticity included.
+This work responds to the emotional weight of misinterpretation. The rabbit becomes a symbol of quiet vulnerability, expressing the desire to be understood rather than defined by the perceptions of others. Original work, one of one. Certificate of authenticity included.

@@ -1,0 +1,47 @@
+<button
+  type="button"
+  class="theme-toggle-btn rounded-full border border-line px-3 py-1.5 text-xs normal-case tracking-normal"
+  aria-pressed="false"
+>
+  Dark mode
+</button>
+
+<script>
+  // Supports multiple instances on one page (desktop nav + mobile nav both
+  // render this component), so we use a class, not an id, and sync all of them.
+  (function () {
+    // This component (and its inline script) can be rendered more than once
+    // per page (desktop + mobile nav) — guard so listeners aren't attached twice.
+    if (window.__themeToggleInit) return;
+    window.__themeToggleInit = true;
+
+    function isDark() {
+      return document.documentElement.getAttribute('data-theme') === 'dark';
+    }
+    function syncAll() {
+      var dark = isDark();
+      document.querySelectorAll('.theme-toggle-btn').forEach(function (btn) {
+        btn.setAttribute('aria-pressed', String(dark));
+        btn.textContent = dark ? 'Light mode' : 'Dark mode';
+      });
+    }
+    function toggle() {
+      var next = isDark() ? 'light' : 'dark';
+      if (next === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      try {
+        localStorage.setItem('theme', next);
+      } catch (e) {
+        /* private mode: theme choice just won't persist across visits */
+      }
+      syncAll();
+    }
+    document.querySelectorAll('.theme-toggle-btn').forEach(function (btn) {
+      btn.addEventListener('click', toggle);
+    });
+    syncAll();
+  })();
+</script>

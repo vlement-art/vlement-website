@@ -1,0 +1,32 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { site } from '../data/site';
+---
+
+<BaseLayout
+  title={`Page not found — ${site.artistName}`}
+  description="This page could not be found."
+  canonicalPath="/404"
+>
+  <section class="mx-auto max-w-xl px-6 py-24 text-center sm:py-32">
+    <p class="mb-4 text-xs uppercase tracking-[0.22em] text-muted">Error 404</p>
+    <h1 class="font-serif text-6xl italic sm:text-7xl">Not found here.</h1>
+    <p class="mt-6 text-muted">
+      This page doesn't exist, or the piece you were looking for may have moved.
+    </p>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <a
+        href="/"
+        class="inline-flex min-h-[2.75rem] items-center justify-center border border-ink bg-ink px-4 py-2 text-xs uppercase tracking-wider text-paper"
+      >
+        Go home
+      </a>
+      <a
+        href="/work"
+        class="inline-flex min-h-[2.75rem] items-center justify-center border border-line px-4 py-2 text-xs uppercase tracking-wider text-muted"
+      >
+        View the gallery
+      </a>
+    </div>
+  </section>
+</BaseLayout>

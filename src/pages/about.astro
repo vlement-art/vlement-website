@@ -1,0 +1,69 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { site } from '../data/site';
+
+// EDIT ME: replace with a real CV file in /public/documents/ once you have one,
+// or remove the link in the template below if you don't want to offer a CV.
+const cvUrl = '/documents/cv.pdf';
+
+const timeline = [
+  { year: '2026', text: 'Selected for "The Artists Among Us", Sotheby\'s, London.' },
+  { year: '2026', text: 'Began the Yellow Balloon series.' },
+  { year: '2024–2025', text: 'Coastal Studies series developed from location drawings made in London and along the south coast.' },
+];
+---
+
+<BaseLayout
+  title={`About — ${site.artistName}`}
+  description={`Biography and artist statement for ${site.artistName}, a painter and printmaker based in ${site.location}.`}
+  canonicalPath="/about"
+>
+  <section class="mx-auto grid max-w-5xl gap-10 px-6 py-16 sm:grid-cols-[1fr_1.4fr] sm:py-20">
+    <div>
+      <img
+        src="/images/artist/portrait.webp"
+        alt={`Portrait of ${site.artistName} in the studio`}
+        width="640"
+        height="800"
+        loading="eager"
+        decoding="async"
+        style="aspect-ratio: 4 / 5;"
+        class="w-full object-cover"
+      />
+    </div>
+    <div>
+      <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted">About the artist</p>
+      <h1 class="font-serif text-5xl italic leading-tight sm:text-6xl">{site.artistName}</h1>
+
+      <div class="prose-body mt-6 max-w-md text-muted">
+        <p>
+          <!-- EDIT ME: replace with your real biography. -->
+          {site.artistName} is a painter and printmaker based in {site.location}, working across
+          oil, mixed media and limited-edition print. The practice returns again and again to a
+          small number of recurring subjects, reworking each one across paintings, drawings and
+          prints until it reveals something new.
+        </p>
+        <p>
+          I need to paint the same subject over and over again, to uncover its different aspects,
+          its different meanings, its different lives. Somewhere between painting, collage and
+          printmaking, the image becomes a place to return to — each time slightly changed.
+        </p>
+      </div>
+
+      <h2 class="mt-10 font-serif text-2xl italic">Exhibitions & highlights</h2>
+      <ul class="mt-4 space-y-4 border-t border-line pt-4 text-sm">
+        {timeline.map((item) => (
+          <li class="flex gap-4">
+            <span class="w-24 flex-none text-muted">{item.year}</span>
+            <span>{item.text}</span>
+          </li>
+        ))}
+      </ul>
+
+      <a href={cvUrl} class="mt-8 inline-block text-sm text-accent-dark hover:underline" download>
+        Download CV (PDF)
+      </a>
+      <!-- EDIT ME: remove the link above if /public/documents/cv.pdf does not exist yet. -->
+    </div>
+  </section>
+</BaseLayout>

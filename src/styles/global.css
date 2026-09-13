@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #f8f6f1;
+  --surface: #ffffff;
+  --ink: #191919;
+  --muted: #706f6b;
+  --line: #dedbd3;
+  --accent: #9a773e;
+  --accent-dark: #6f5227;
+}
+
+[data-theme='dark'] {
+  --paper: #121212;
+  --surface: #1c1c1c;
+  --ink: #f4f1e9;
+  --muted: #b9b5ad;
+  --line: #3b3935;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 50;
+  padding: 0.65rem 0.9rem;
+  color: #fff;
+  background: var(--ink);
+  transition: top 150ms ease;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* Reserve space for images so nothing shifts on load; ratio is set inline
+   per-image via the aspect-ratio attribute on <img>. */
+img {
+  background: color-mix(in srgb, var(--paper) 75%, #888 25%);
+}
+
+.prose-body p + p {
+  margin-top: 1rem;
+}

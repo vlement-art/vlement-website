@@ -1,0 +1,115 @@
+---
+import ThemeToggle from './ThemeToggle.astro';
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+const navLinks = [
+  { href: '/work', label: 'Work' },
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
+];
+---
+
+<header class="border-b border-line" data-site-header>
+  <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-5">
+    <a href="/" class="font-serif italic text-lg" aria-label="Vlement J. Rodrigues home">
+      Vlement J. Rodrigues
+    </a>
+
+    <button
+      type="button"
+      class="border border-line px-3 py-2 text-xs uppercase tracking-wider sm:hidden"
+      id="menuToggle"
+      aria-expanded="false"
+      aria-controls="mobileNav"
+    >
+      Menu
+    </button>
+
+    <nav class="hidden items-center gap-6 text-xs uppercase tracking-wider text-muted sm:flex" aria-label="Main navigation">
+      {navLinks.map((link) => (
+        <a
+          href={link.href}
+          class="hover:text-ink"
+          aria-current={currentPath === link.href ? 'page' : undefined}
+        >
+          {link.label}
+        </a>
+      ))}
+      <ThemeToggle />
+    </nav>
+  </div>
+
+  <nav
+    id="mobileNav"
+    class="hidden flex-col gap-1 border-t border-line px-6 py-4 text-sm sm:hidden"
+    aria-label="Mobile navigation"
+  >
+    {navLinks.map((link) => (
+      <a href={link.href} class="py-2" aria-current={currentPath === link.href ? 'page' : undefined}>
+        {link.label}
+      </a>
+    ))}
+    <div class="pt-2">
+      <ThemeToggle />
+    </div>
+  </nav>
+</header>
+
+<script>
+  (function () {
+    var toggle = document.getElementById('menuToggle');
+    var nav = document.getElementById('mobileNav');
+    if (!toggle || !nav) return;
+    toggle.addEventListener('click', function () {
+      var isOpen = nav.classList.toggle('flex');
+      nav.classList.toggle('hidden');
+      toggle.setAttribute('aria-expanded', String(isOpen));
+      toggle.textContent = isOpen ? 'Close' : 'Menu';
+    });
+  })();
+</script>
+
+<style>
+  [data-site-header] {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--paper);
+    transform: translateY(0);
+    transition: transform 200ms ease;
+  }
+  [data-site-header].is-hidden {
+    transform: translateY(-100%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-site-header] {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  // Intelligent header: hides on scroll-down past the first screen, reappears on scroll-up.
+  (function () {
+    var header = document.querySelector('[data-site-header]');
+    if (!header) return;
+    var lastY = window.scrollY;
+    var ticking = false;
+    function onScroll() {
+      var y = window.scrollY;
+      if (y > lastY && y > header.offsetHeight * 2) {
+        header.classList.add('is-hidden');
+      } else {
+        header.classList.remove('is-hidden');
+      }
+      lastY = y;
+      ticking = false;
+    }
+    window.addEventListener('scroll', function () {
+      if (!ticking) {
+        window.requestAnimationFrame(onScroll);
+        ticking = true;
+      }
+    });
+  })();
+</script>

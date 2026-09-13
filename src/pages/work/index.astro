@@ -1,0 +1,133 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArtworkCard from '../../components/ArtworkCard.astro';
+import { getCollection } from 'astro:content';
+import { site } from '../../data/site';
+
+const allArtworks = (await getCollection('artworks')).sort(
+  (a, b) => a.data.displayOrder - b.data.displayOrder
+);
+
+const collectionsList = Array.from(new Set(allArtworks.map((a) => a.data.collection))).sort();
+const categoriesList = Array.from(new Set(allArtworks.map((a) => a.data.category))).sort();
+
+const title = `Gallery — ${site.artistName}`;
+const description = `Browse original paintings, mixed-media works and limited edition prints by ${site.artistName}.`;
+---
+
+<BaseLayout title={title} description={description} canonicalPath="/work">
+  <section class="mx-auto max-w-6xl px-6 pb-8 pt-16">
+    <div class="mb-6 flex items-end justify-between gap-4 border-b border-line pb-6">
+      <div>
+        <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted">The full collection</p>
+        <h1 class="font-serif text-5xl italic sm:text-6xl">Selected work</h1>
+      </div>
+      <span class="text-sm text-muted" id="resultCount" aria-live="polite">{allArtworks.length} works</span>
+    </div>
+
+    <form id="filterForm" class="mb-10 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_12rem_12rem]" role="search" aria-label="Filter artwork">
+      <label class="block">
+        <span class="sr-only">Search title or medium</span>
+        <input
+          id="searchInput"
+          type="search"
+          placeholder="Search title or medium"
+          autocomplete="off"
+          class="min-h-[2.8rem] w-full border border-line bg-surface px-3 py-2 text-ink"
+        />
+      </label>
+      <label class="block">
+        <span class="sr-only">Filter by category</span>
+        <select id="categoryFilter" class="min-h-[2.8rem] w-full border border-line bg-surface px-3 py-2 text-ink">
+          <option value="all">All categories</option>
+          {categoriesList.map((c) => <option value={c.toLowerCase()}>{c}</option>)}
+        </select>
+      </label>
+      <label class="block">
+        <span class="sr-only">Filter by collection</span>
+        <select id="collectionFilter" class="min-h-[2.8rem] w-full border border-line bg-surface px-3 py-2 text-ink">
+          <option value="all">All collections</option>
+          {collectionsList.map((c) => <option value={c.toLowerCase()}>{c}</option>)}
+        </select>
+      </label>
+    </form>
+
+    <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3" id="artworkGrid">
+      {allArtworks.map((artwork, i) => (
+        <ArtworkCard
+          slug={artwork.slug}
+          title={artwork.data.title}
+          year={artwork.data.year}
+          medium={artwork.data.medium}
+          thumbnail={artwork.data.thumbnail}
+          altText={artwork.data.altText}
+          category={artwork.data.category}
+          collection={artwork.data.collection}
+          available={artwork.data.available}
+          price={artwork.data.price}
+          eager={i < 3}
+        />
+      ))}
+    </div>
+    <p class="hidden border border-line px-4 py-12 text-center text-muted" id="emptyState">
+      No artwork matches that search. Try a different term or clear the filters.
+    </p>
+  </section>
+</BaseLayout>
+
+<script>
+  // Progressive enhancement: the full grid is already server-rendered above,
+  // so the page works with JavaScript disabled — this script only hides/shows
+  // cards, it never fetches or renders content that wasn't already in the HTML.
+  (function () {
+    var searchInput = document.getElementById('searchInput');
+    var categoryFilter = document.getElementById('categoryFilter');
+    var collectionFilter = document.getElementById('collectionFilter');
+    var grid = document.getElementById('artworkGrid');
+    var emptyState = document.getElementById('emptyState');
+    var resultCount = document.getElementById('resultCount');
+    var form = document.getElementById('filterForm');
+    if (!searchInput || !grid) return;
+
+    // This is a live filter, not a real submission (there is nowhere to
+    // submit to) — pressing Enter in the search field should just filter,
+    // not reload the page.
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+      });
+    }
+
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.artwork-card'));
+
+    function applyFilters() {
+      var query = searchInput.value.trim().toLowerCase();
+      var category = categoryFilter.value;
+      var coll = collectionFilter.value;
+      var visibleCount = 0;
+
+      cards.forEach(function (card) {
+        var matchesQuery =
+          !query ||
+          card.dataset.title.indexOf(query) !== -1 ||
+          card.dataset.medium.indexOf(query) !== -1;
+        var matchesCategory = category === 'all' || card.dataset.category === category;
+        var matchesCollection = coll === 'all' || card.dataset.collection === coll;
+        var visible = matchesQuery && matchesCategory && matchesCollection;
+        card.style.display = visible ? '' : 'none';
+        if (visible) visibleCount += 1;
+      });
+
+      if (resultCount) {
+        resultCount.textContent = visibleCount + (visibleCount === 1 ? ' work' : ' works');
+      }
+      if (emptyState) {
+        emptyState.classList.toggle('hidden', visibleCount !== 0);
+      }
+    }
+
+    searchInput.addEventListener('input', applyFilters);
+    categoryFilter.addEventListener('change', applyFilters);
+    collectionFilter.addEventListener('change', applyFilters);
+  })();
+</script>

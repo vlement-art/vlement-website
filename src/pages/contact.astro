@@ -1,0 +1,92 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { site } from '../data/site';
+
+// Optional third-party form endpoint (e.g. Formspree, Web3Forms). This is a
+// PUBLIC value (a form ID, not a secret) read at build time from .env — see
+// .env.example and the README "Contact form" section for setup instructions.
+// If it isn't set, the page shows only the direct email/social contact
+// options and skips the form entirely, which is the secure default.
+const formEndpoint = import.meta.env.PUBLIC_CONTACT_FORM_ENDPOINT;
+---
+
+<BaseLayout
+  title={`Contact — ${site.artistName}`}
+  description={`Get in touch with ${site.artistName} about available work, commissions or press enquiries.`}
+  canonicalPath="/contact"
+>
+  <section class="mx-auto max-w-2xl px-6 py-16 sm:py-20">
+    <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted">Private enquiries · Prints · Originals</p>
+    <h1 class="font-serif text-5xl italic sm:text-6xl">Get in touch</h1>
+    <p class="mt-4 text-muted">
+      For availability, shipping, commissions or press enquiries, reach {site.artistName} directly.
+    </p>
+
+    <div class="mt-8 grid gap-6 border-y border-line py-8 sm:grid-cols-2">
+      <div>
+        <h2 class="text-xs uppercase tracking-wide text-muted">Email</h2>
+        <a href={`mailto:${site.email}`} class="mt-1 block text-lg hover:text-accent-dark hover:underline">
+          {site.email}
+        </a>
+      </div>
+      <div>
+        <h2 class="text-xs uppercase tracking-wide text-muted">Instagram</h2>
+        <a
+          href={site.social.instagram.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-1 block text-lg hover:text-accent-dark hover:underline"
+        >
+          @{site.social.instagram.handle}
+        </a>
+      </div>
+    </div>
+
+    {formEndpoint ? (
+      <form
+        action={formEndpoint}
+        method="POST"
+        class="mt-10 space-y-4"
+        novalidate
+      >
+        <div>
+          <label for="name" class="block text-xs uppercase tracking-wide text-muted">Name</label>
+          <input id="name" name="name" type="text" required class="mt-1 min-h-[2.8rem] w-full border border-line bg-surface px-3 py-2 text-ink" />
+        </div>
+        <div>
+          <label for="email" class="block text-xs uppercase tracking-wide text-muted">Email</label>
+          <input id="email" name="email" type="email" required class="mt-1 min-h-[2.8rem] w-full border border-line bg-surface px-3 py-2 text-ink" />
+        </div>
+        <div>
+          <label for="message" class="block text-xs uppercase tracking-wide text-muted">Message</label>
+          <textarea id="message" name="message" rows="5" required class="mt-1 w-full border border-line bg-surface px-3 py-2 text-ink"></textarea>
+        </div>
+        <!--
+          Honeypot spam trap: hidden from real visitors via CSS, but bots that
+          fill in every field will trip it. Pair this with your form
+          provider's own spam filtering (e.g. Formspree's built-in filtering,
+          or a Cloudflare Turnstile widget) — a honeypot alone is a deterrent,
+          not a guarantee. See README "Contact form" for details.
+        -->
+        <div class="hidden" aria-hidden="true">
+          <label for="company">Company</label>
+          <input id="company" name="company" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+        <button
+          type="submit"
+          class="inline-flex min-h-[2.75rem] items-center justify-center border border-ink bg-ink px-5 py-2 text-xs uppercase tracking-wider text-paper"
+        >
+          Send message
+        </button>
+      </form>
+    ) : (
+      <p class="mt-10 text-sm text-muted">
+        <!-- EDIT ME / REMOVE ME: this note only shows because no form endpoint is
+             configured yet. See README "Contact form" to add one, or leave the
+             site as email/social-only, which needs no third-party service at all. -->
+        A contact form isn't configured yet — set <code>PUBLIC_CONTACT_FORM_ENDPOINT</code> in your
+        environment to enable one (see the README), or simply use the email above.
+      </p>
+    )}
+  </section>
+</BaseLayout>

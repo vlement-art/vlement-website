@@ -1,0 +1,21 @@
+# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+
+# original high-res source images — see README > Images before removing this line
+public/images/originals/

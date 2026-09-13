@@ -1,0 +1,121 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ArtworkCard from '../components/ArtworkCard.astro';
+import { getCollection } from 'astro:content';
+import { site } from '../data/site';
+
+const allArtworks = await getCollection('artworks');
+const featured = allArtworks
+  .filter((a) => a.data.featured)
+  .sort((a, b) => a.data.displayOrder - b.data.displayOrder)
+  .slice(0, 4);
+
+const exhibitions = [
+  {
+    title: 'The Artists Among Us',
+    venue: "Sotheby's, London",
+    dates: '17–28 August 2026',
+    url: 'https://www.sothebys.com/en/digital-catalogues/the-artists-among-us-1?locale=en',
+  },
+];
+---
+
+<BaseLayout title={`${site.artistName} — Original Paintings & Prints`} description={site.description}>
+  <section class="mx-auto max-w-3xl px-6 pb-16 pt-24 text-center sm:pt-32">
+    <p class="mb-4 text-xs uppercase tracking-[0.22em] text-muted">
+      {site.location} · Painting / Mixed Media / Printmaking
+    </p>
+    <h1 class="mx-auto max-w-3xl font-serif text-6xl italic leading-[0.9] tracking-tight sm:text-8xl">
+      {site.artistName}
+    </h1>
+    <p class="mx-auto mt-8 max-w-md text-lg text-muted">
+      One subject. Many lives. Original paintings and limited edition prints by {site.artistName}.
+    </p>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <a
+        href="/work"
+        class="inline-flex min-h-[2.75rem] items-center justify-center border border-ink bg-ink px-4 py-2 text-xs uppercase tracking-wider text-paper transition-transform duration-200 hover:-translate-y-px"
+      >
+        View all work
+      </a>
+      <a
+        href="/contact"
+        class="inline-flex min-h-[2.75rem] items-center justify-center border border-line px-4 py-2 text-xs uppercase tracking-wider text-muted transition-transform duration-200 hover:-translate-y-px"
+      >
+        Make an enquiry
+      </a>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-6 pb-24" aria-labelledby="featured-heading">
+    <div class="mb-6 flex items-end justify-between gap-4 border-t border-line pt-10">
+      <h2 id="featured-heading" class="font-serif text-3xl italic sm:text-4xl">Featured work</h2>
+      <a href="/work" class="text-xs uppercase tracking-wider text-muted hover:text-ink">View all &rarr;</a>
+    </div>
+    <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      {featured.map((artwork, i) => (
+        <ArtworkCard
+          slug={artwork.slug}
+          title={artwork.data.title}
+          year={artwork.data.year}
+          medium={artwork.data.medium}
+          thumbnail={artwork.data.thumbnail}
+          altText={artwork.data.altText}
+          category={artwork.data.category}
+          collection={artwork.data.collection}
+          available={artwork.data.available}
+          price={artwork.data.price}
+          eager={i === 0}
+        />
+      ))}
+    </div>
+  </section>
+
+  <section class="mx-auto grid max-w-6xl gap-10 border-t border-line px-6 py-16 sm:grid-cols-[0.8fr_1fr]" aria-labelledby="about-heading">
+    <h2 id="about-heading" class="font-serif text-4xl italic leading-[0.95] sm:text-5xl">
+      One subject.<br />Many lives.
+    </h2>
+    <div class="max-w-md">
+      <p class="text-xl">
+        I need to paint the same subject over and over again, to uncover its different aspects,
+        its different meanings, its different lives.
+      </p>
+      <p class="mt-4 text-muted">
+        Somewhere between painting, collage and printmaking, the image becomes a place to return
+        to — each time slightly changed.
+      </p>
+      <a href="/about" class="mt-4 inline-block text-sm text-accent-dark hover:underline">Read more about the practice</a>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl border-t border-line px-6 py-16" aria-labelledby="exhibitions-heading">
+    <h2 id="exhibitions-heading" class="mb-6 font-serif text-3xl italic sm:text-4xl">Exhibitions</h2>
+    <ul class="divide-y divide-line border-y border-line">
+      {exhibitions.map((ex) => (
+        <li>
+          <a href={ex.url} target="_blank" rel="noopener noreferrer" class="flex items-baseline justify-between gap-4 py-4 hover:opacity-60">
+            <span class="font-serif text-lg italic">{ex.title}</span>
+            <span class="text-right text-xs text-muted">{ex.venue} · {ex.dates}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="mx-auto max-w-6xl border-t border-line px-6 py-16" aria-labelledby="contact-heading">
+    <div class="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
+      <div>
+        <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted">Private enquiries · Prints · Originals</p>
+        <h2 id="contact-heading" class="max-w-xl font-serif text-4xl italic leading-[0.95] sm:text-5xl">
+          Find a piece to return to.
+        </h2>
+      </div>
+      <a
+        href="/contact"
+        class="inline-flex min-h-[2.75rem] items-center justify-center border border-ink bg-ink px-5 py-2 text-xs uppercase tracking-wider text-paper"
+      >
+        Contact the artist
+      </a>
+    </div>
+  </section>
+</BaseLayout>

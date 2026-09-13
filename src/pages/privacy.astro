@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { site } from '../data/site';
+---
+
+<BaseLayout
+  title={`Privacy — ${site.artistName}`}
+  description="How this website handles data, cookies and third-party content."
+  canonicalPath="/privacy"
+>
+  <section class="prose-body mx-auto max-w-2xl px-6 py-16 sm:py-20">
+    <h1 class="font-serif text-5xl italic sm:text-6xl">Privacy</h1>
+    <p class="mt-6 text-muted">Last updated: {new Date().toISOString().slice(0, 10)}.</p>
+
+    <div class="mt-8 space-y-6 text-muted">
+      <p>
+        This is a static website with no server, no database and no user accounts. It does not use
+        analytics or advertising scripts, and it does not set tracking cookies.
+      </p>
+      <p>
+        <strong class="text-ink">Cookies:</strong> this site does not set any cookies. Your theme
+        preference (light/dark) is stored locally in your browser using
+        <code>localStorage</code>, not a cookie, and is never sent to any server.
+      </p>
+      <p>
+        <strong class="text-ink">Embedded content:</strong> links to external sites (such as
+        Instagram or exhibition listings) open those sites directly; this site does not embed
+        third-party widgets, players, or trackers.
+      </p>
+      <p>
+        <strong class="text-ink">Contact form:</strong> if a contact form is present on the
+        <a href="/contact" class="underline hover:text-ink">Contact page</a>, submissions are sent
+        directly to a third-party form provider chosen and configured by the site owner (see the
+        project README for details) — this site's own code never stores or has access to
+        submitted messages. If no form is shown, contact happens only via the direct email link,
+        which opens your own email application.
+      </p>
+      <p>
+        <strong class="text-ink">Hosting:</strong> this site is hosted as static files on GitHub
+        Pages or Cloudflare Pages. Those providers may log basic technical request data (such as IP
+        address) as part of normal web server operation; this is outside this site's own code and
+        governed by the hosting provider's privacy policy.
+      </p>
+      <p>
+        Questions about this policy can be sent to
+        <a href={`mailto:${site.email}`} class="underline hover:text-ink">{site.email}</a>.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

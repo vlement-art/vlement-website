@@ -1,0 +1,52 @@
+﻿backend:
+  name: github
+  repo: vlement-art/vlement-website
+  branch: main
+  # Set this to your Cloudflare Worker URL once deployed (see README-admin.md)
+  base_url: https://your-oauth-proxy.example.workers.dev
+
+# Where uploaded images are stored and how they are referenced in frontmatter.
+media_folder: "public/images/artwork"
+public_folder: "/images/artwork"
+
+collections:
+  - name: artworks
+    label: Artworks
+    label_singular: Artwork
+    folder: src/content/artworks
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    identifier_field: title
+    format: frontmatter
+    fields:
+      - { label: Title, name: title, widget: string, hint: "e.g. Nunca dejes que la luz se apague" }
+      - { label: Year, name: year, widget: number, value_type: int, min: 1900, max: 2100 }
+      - { label: Medium, name: medium, widget: string, hint: "e.g. Hahnemühle Photo Rag Giclée" }
+      - { label: Dimensions, name: dimensions, widget: string, hint: "e.g. 42 × 30 cm" }
+      - label: Category
+        name: category
+        widget: select
+        options: ["Print", "Original painting", "Drawing", "Mixed media"]
+      - label: Collection
+        name: collection
+        widget: select
+        options: ["Yellow Balloon", "Coastal Studies"]
+      - { label: Short summary, name: summary, widget: text, hint: "Used on cards and social previews — 1-2 sentences" }
+      - label: Full-size image
+        name: image
+        widget: image
+        media_library: { config: { multiple: false } }
+        hint: "The large image shown on the artwork's own page"
+      - label: Thumbnail
+        name: thumbnail
+        widget: image
+        media_folder: "public/images/thumbnails"
+        public_folder: "/images/thumbnails"
+        hint: "Smaller image used on gallery cards — upload a cropped/lighter version"
+      - { label: Alt text, name: altText, widget: string, hint: "Describe the image for screen readers/SEO" }
+      - { label: Featured on homepage, name: featured, widget: boolean, default: false }
+      - { label: Available for sale, name: available, widget: boolean, default: true }
+      - { label: Price, name: price, widget: string, required: false, hint: "e.g. £110 — leave blank if sold or not for sale" }
+      - { label: Display order, name: displayOrder, widget: number, value_type: int, default: 0, hint: "Lower numbers show first" }
+      - { label: Full description, name: body, widget: markdown, hint: "The longer text shown on the artwork's own page" }

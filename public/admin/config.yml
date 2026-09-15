@@ -2,8 +2,7 @@
   name: github
   repo: vlement-art/vlement-website
   branch: main
-  # Set this to your Cloudflare Worker URL once deployed (see README-admin.md)
-  base_url: https://your-oauth-proxy.example.workers.dev
+  base_url: https://ancient-sunset-49c4.jmrdea.workers.dev
 
 # Where uploaded images are stored and how they are referenced in frontmatter.
 media_folder: "public/images/artwork"

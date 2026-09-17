@@ -279,6 +279,7 @@ function logout() {
 async function ghRequest(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    cache: 'no-store',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Accept': 'application/vnd.github+json',
@@ -287,7 +288,9 @@ async function ghRequest(path, options = {}) {
   });
   if (!res.ok && res.status !== 404) {
     const text = await res.text().catch(() => '');
-    throw new Error(`GitHub API ${res.status}: ${text || res.statusText}`);
+    const err = new Error(`GitHub API ${res.status}: ${text || res.statusText}`);
+    err.status = res.status;
+    throw err;
   }
   return res;
 }
@@ -316,6 +319,21 @@ async function ghPutFile(path, base64Content, message, sha) {
     })
   });
   return res.json(); // { content: { sha, path, ... }, commit: {...} }
+}
+
+// Wraps ghPutFile: if GitHub reports the sha is stale (409 conflict), re-fetch the
+// file's current sha and retry once automatically instead of failing the save.
+async function ghPutFileSafe(path, base64Content, message) {
+  const existing = await ghGetFile(path);
+  try {
+    return await ghPutFile(path, base64Content, message, existing?.sha);
+  } catch (err) {
+    if (err.status === 409) {
+      const fresh = await ghGetFile(path);
+      return await ghPutFile(path, base64Content, message, fresh?.sha);
+    }
+    throw err;
+  }
 }
 
 async function ghDeleteFile(path, sha, message) {
@@ -617,8 +635,7 @@ async function saveEntry() {
       const ext = extOf(pendingImageFile.name);
       const imgPath = `${IMAGE_DIR}/${slug}.${ext}`;
       const b64 = await fileToBase64(pendingImageFile);
-      const existing = await ghGetFile(imgPath);
-      await ghPutFile(imgPath, b64, `Upload image for ${title}`, existing?.sha);
+      await ghPutFileSafe(imgPath, b64, `Upload image for ${title}`);
       data.image = `${IMAGE_PUBLIC_PREFIX}/${slug}.${ext}`;
     }
 
@@ -627,8 +644,7 @@ async function saveEntry() {
       const ext = extOf(pendingThumbFile.name);
       const thumbPath = `${THUMB_DIR}/${slug}.${ext}`;
       const b64 = await fileToBase64(pendingThumbFile);
-      const existing = await ghGetFile(thumbPath);
-      await ghPutFile(thumbPath, b64, `Upload thumbnail for ${title}`, existing?.sha);
+      await ghPutFileSafe(thumbPath, b64, `Upload thumbnail for ${title}`);
       data.thumbnail = `${THUMB_PUBLIC_PREFIX}/${slug}.${ext}`;
     }
 
@@ -638,8 +654,7 @@ async function saveEntry() {
     const content = buildFrontmatter(data, body);
     const b64Content = utf8ToBase64(content);
 
-    const existingMd = isNew ? null : await ghGetFile(mdPath);
-    const putResult = await ghPutFile(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`, existingMd?.sha);
+    const putResult = await ghPutFileSafe(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`);
     const newSha = putResult?.content?.sha;
 
     // Update local state directly instead of re-fetching every entry from GitHub
@@ -670,7 +685,8 @@ async function saveEntry() {
 async function confirmDelete(entry) {
   if (!confirm(`Delete "${entry.data.title || entry.slug}"? This removes the entry file (images are left in place).`)) return;
   try {
-    await ghDeleteFile(entry.path, entry.sha, `Delete artwork: ${entry.data.title || entry.slug}`);
+    const fresh = await ghGetFile(entry.path);
+    await ghDeleteFile(entry.path, fresh?.sha || entry.sha, `Delete artwork: ${entry.data.title || entry.slug}`);
     entries = entries.filter(e => e.path !== entry.path);
     renderGrid();
     setListStatus(`${entries.length} artwork${entries.length === 1 ? '' : 's'}`);

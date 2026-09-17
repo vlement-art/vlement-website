@@ -10,7 +10,7 @@ image: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
 thumbnail: /images/thumbnails/nunca-dejes-que-la-luz-se-apague.webp
 altText: Candle artwork titled No Dejes Que la Luz Se Apague
 featured: true
-available: true
+available: false
 price: £110
 displayOrder: 1
 ---

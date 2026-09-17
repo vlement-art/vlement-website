@@ -5,7 +5,7 @@ medium: Hahnemühle Photo Rag Giclée
 dimensions: 42 × 30 cm
 category: Print
 collection: Yellow Balloon
-summary: A seasonal exploration capturing the delicate transition of spring, its ephemeral beauty and subtle complexities.
+summary: A seasonal exploration capturing the delicate transition of spring, its ephemeral beauty and subtle complexities
 image: /images/artwork/slippery-spring.jpg
 thumbnail: /images/thumbnails/slippery-spring.webp
 altText: Flower artwork titled Slippery Spring

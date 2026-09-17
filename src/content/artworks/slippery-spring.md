@@ -6,7 +6,7 @@ dimensions: 42 × 30 cm
 category: Print
 collection: Yellow Balloon
 summary: A seasonal exploration capturing the delicate transition of spring, its ephemeral beauty and subtle complexities.
-image: /images/artwork/slippery-spring.jpg
+image: /images/artwork/slippery-spring.webp
 thumbnail: /images/thumbnails/slippery-spring.webp
 altText: Flower artwork titled Slippery Spring
 featured: true

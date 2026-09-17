@@ -1,15 +1,685 @@
-﻿<!doctype html>
+﻿<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex, nofollow" />
-    <title>Vlement — Content Admin</title>
-  </head>
-  <body>
-    <!-- Sveltia CMS: a free, git-based admin UI. Edits here commit directly
-         to this GitHub repo, which triggers the existing GitHub Pages
-         deploy workflow automatically. Config lives in ./config.yml -->
-    <script src="https://unpkg.com/@sveltia/cms/dist/sveltia-cms.js" type="module"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Artworks Admin — vlement</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --panel: #ffffff;
+    --ink: #1c1a17;
+    --muted: #6b6459;
+    --line: #e4e0d9;
+    --accent: #b5482f;
+    --accent-ink: #ffffff;
+    --danger: #b02a2a;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header.topbar h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    padding: 8px 14px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn:hover { background: #f0eee9; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { background: #9c3c26; }
+  .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .btn.danger:hover { background: #8f2222; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+
+  #login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    gap: 16px;
+    text-align: center;
+  }
+  #login-screen p { color: var(--muted); max-width: 360px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .card .thumb {
+    aspect-ratio: 1 / 1;
+    background: #eee repeating-conic-gradient(#e5e5e5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .card .body { padding: 12px; display: flex; flex-direction: column; gap: 4px; flex: auto; }
+  .card .title { font-weight: 600; font-size: 14px; line-height: 1.3; }
+  .card .meta { font-size: 12px; color: var(--muted); }
+  .card .actions { display: flex; gap: 8px; padding: 0 12px 12px; }
+  .card .actions .btn { flex: 1; justify-content: center; padding: 6px 10px; font-size: 13px; }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
+
+  /* Modal */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(20,18,15,.45);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 32px 16px; overflow-y: auto; z-index: 100;
+  }
+  .modal {
+    background: var(--panel);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 640px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 18px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .field .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .field input[type=text], .field input[type=number], .field select, .field textarea {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--ink);
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; }
+  .checkbox-row label { font-size: 13px; font-weight: 600; }
+
+  .image-field { display: flex; gap: 12px; align-items: center; }
+  .image-field .preview {
+    width: 72px; height: 72px; border-radius: 8px; overflow: hidden;
+    background: #eee repeating-conic-gradient(#e5e5e5 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+    flex: none; display: flex; align-items: center; justify-content: center;
+  }
+  .image-field .preview img { width: 100%; height: 100%; object-fit: cover; }
+  .image-field .preview span { font-size: 10px; color: var(--muted); }
+
+  .modal-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line);
+  }
+  .modal-footer .right { display: flex; gap: 8px; }
+
+  .status-banner {
+    font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px;
+  }
+  .status-banner.error { background: #fbe7e5; color: var(--danger); }
+  .status-banner.info { background: #eef2f6; color: #33546b; }
+
+  .spinner {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid rgba(0,0,0,.15); border-top-color: var(--ink);
+    animation: spin .7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Artworks Admin</h1>
+  <div id="topbar-actions"></div>
+</header>
+
+<main>
+  <div id="login-screen">
+    <h2>Sign in to manage artworks</h2>
+    <p>This connects to your GitHub repository (<code>vlement-art/vlement-website</code>) to add, edit, and delete artwork entries directly.</p>
+    <button class="btn primary" id="login-btn">Sign in with GitHub</button>
+    <div id="login-status"></div>
+  </div>
+
+  <div id="app-screen" hidden>
+    <div id="banner-area"></div>
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div id="list-status" style="color:var(--muted); font-size:14px;"></div>
+      <button class="btn primary" id="new-entry-btn">+ New Artwork</button>
+    </div>
+    <div class="grid" id="entry-grid"></div>
+    <div class="empty-state" id="empty-state" hidden>No artworks yet. Click "New Artwork" to add one.</div>
+  </div>
+</main>
+
+<div class="overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------
+   CONFIG — matches config.yml
+--------------------------------------------------------------------- */
+const REPO_OWNER = 'vlement-art';
+const REPO_NAME = 'vlement-website';
+const BRANCH = 'main';
+const AUTH_WORKER = 'https://ancient-sunset-49c4.jmrdea.workers.dev';
+const CONTENT_DIR = 'src/content/artworks';
+const IMAGE_DIR = 'public/images/artwork';
+const IMAGE_PUBLIC_PREFIX = '/images/artwork';
+const THUMB_DIR = 'public/images/thumbnails';
+const THUMB_PUBLIC_PREFIX = '/images/thumbnails';
+
+const CATEGORY_OPTIONS = ['Print', 'Original painting', 'Drawing', 'Mixed media'];
+const COLLECTION_OPTIONS = ['Yellow Balloon', 'Coastal Studies'];
+
+const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
+
+/* ---------------------------------------------------------------------
+   STATE
+--------------------------------------------------------------------- */
+let token = sessionStorage.getItem('gh_token') || null;
+let entries = []; // { path, sha, slug, data:{...}, body:"" }
+
+/* ---------------------------------------------------------------------
+   AUTH — reuses the existing Sveltia OAuth worker/callback
+--------------------------------------------------------------------- */
+function login() {
+  const width = 600, height = 700;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+  const popup = window.open(
+    `${AUTH_WORKER}/auth?provider=github&site_id=${location.hostname}&scope=repo`,
+    'github-oauth',
+    `width=${width},height=${height},left=${left},top=${top}`
+  );
+
+  function handleMessage(e) {
+    if (typeof e.data !== 'string') return;
+
+    if (e.data === 'authorizing:github') {
+      // Handshake: echo back to the popup to confirm trusted origin
+      e.source.postMessage('authorizing:github', e.origin);
+      return;
+    }
+
+    if (e.data.startsWith('authorization:github:success:')) {
+      const payload = JSON.parse(e.data.slice('authorization:github:success:'.length));
+      token = payload.token;
+      sessionStorage.setItem('gh_token', token);
+      window.removeEventListener('message', handleMessage);
+      popup && popup.close();
+      showApp();
+      return;
+    }
+
+    if (e.data.startsWith('authorization:github:error:')) {
+      const payload = JSON.parse(e.data.slice('authorization:github:error:'.length));
+      window.removeEventListener('message', handleMessage);
+      popup && popup.close();
+      document.getElementById('login-status').textContent = 'Sign-in failed: ' + (payload.error || 'unknown error');
+    }
+  }
+
+  window.addEventListener('message', handleMessage);
+}
+
+function logout() {
+  token = null;
+  sessionStorage.removeItem('gh_token');
+  location.reload();
+}
+
+/* ---------------------------------------------------------------------
+   GITHUB API HELPERS (REST Contents API — not GraphQL)
+--------------------------------------------------------------------- */
+async function ghRequest(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GitHub API ${res.status}: ${text || res.statusText}`);
+  }
+  return res;
+}
+
+async function ghGetFile(path) {
+  const res = await ghRequest(`/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}?ref=${BRANCH}`);
+  if (res.status === 404) return null;
+  return res.json();
+}
+
+async function ghListDir(path) {
+  const res = await ghRequest(`/contents/${path}?ref=${BRANCH}`);
+  if (res.status === 404) return [];
+  return res.json();
+}
+
+async function ghPutFile(path, base64Content, message, sha) {
+  const res = await ghRequest(`/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      message,
+      content: base64Content,
+      branch: BRANCH,
+      ...(sha ? { sha } : {})
+    })
+  });
+  return res.json();
+}
+
+async function ghDeleteFile(path, sha, message) {
+  await ghRequest(`/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ message, sha, branch: BRANCH })
+  });
+}
+
+/* ---------------------------------------------------------------------
+   ENCODING HELPERS
+--------------------------------------------------------------------- */
+function utf8ToBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function base64ToUtf8(b64) {
+  return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
+}
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function slugify(str) {
+  return str.toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'artwork';
+}
+function extOf(filename) {
+  const m = /\.([a-zA-Z0-9]+)$/.exec(filename);
+  return m ? m[1].toLowerCase() : 'jpg';
+}
+
+/* ---------------------------------------------------------------------
+   FRONTMATTER PARSE / BUILD
+--------------------------------------------------------------------- */
+function parseFrontmatter(raw) {
+  const match = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(raw);
+  if (!match) return { data: {}, body: raw };
+  const data = jsyaml.load(match[1]) || {};
+  return { data, body: match[2].replace(/^\n+/, '') };
+}
+function buildFrontmatter(data, body) {
+  const yamlStr = jsyaml.dump(data, { lineWidth: -1 });
+  return `---\n${yamlStr}---\n\n${body || ''}\n`;
+}
+
+/* ---------------------------------------------------------------------
+   LOAD ENTRIES
+--------------------------------------------------------------------- */
+async function loadEntries() {
+  setListStatus('Loading artworks…');
+  const files = await ghListDir(CONTENT_DIR);
+  const mdFiles = files.filter(f => f.type === 'file' && /\.md$/.test(f.name));
+  entries = [];
+  for (const f of mdFiles) {
+    const file = await ghGetFile(`${CONTENT_DIR}/${f.name}`);
+    const raw = base64ToUtf8(file.content);
+    const { data, body } = parseFrontmatter(raw);
+    entries.push({
+      path: file.path,
+      sha: file.sha,
+      slug: f.name.replace(/\.md$/, ''),
+      data,
+      body
+    });
+  }
+  entries.sort((a, b) => (a.data.displayOrder ?? 0) - (b.data.displayOrder ?? 0));
+  renderGrid();
+  setListStatus(`${entries.length} artwork${entries.length === 1 ? '' : 's'}`);
+}
+
+function setListStatus(msg) {
+  document.getElementById('list-status').textContent = msg;
+}
+
+function showBanner(msg, type = 'info') {
+  const area = document.getElementById('banner-area');
+  area.innerHTML = `<div class="status-banner ${type}">${msg}</div>`;
+  if (type === 'info') setTimeout(() => { if (area.firstChild) area.innerHTML = ''; }, 4000);
+}
+
+/* ---------------------------------------------------------------------
+   RENDER LIST
+--------------------------------------------------------------------- */
+function renderGrid() {
+  const grid = document.getElementById('entry-grid');
+  const empty = document.getElementById('empty-state');
+  grid.innerHTML = '';
+  empty.hidden = entries.length !== 0;
+
+  for (const entry of entries) {
+    const d = entry.data;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="thumb">${d.thumbnail || d.image ? `<img src="${d.thumbnail || d.image}" alt="">` : ''}</div>
+      <div class="body">
+        <div class="title">${escapeHtml(d.title || '(untitled)')}</div>
+        <div class="meta">${escapeHtml(d.category || '')}${d.year ? ' · ' + d.year : ''}</div>
+      </div>
+      <div class="actions">
+        <button class="btn edit-btn">Edit</button>
+        <button class="btn danger delete-btn">Delete</button>
+      </div>
+    `;
+    card.querySelector('.edit-btn').addEventListener('click', () => openEditor(entry));
+    card.querySelector('.delete-btn').addEventListener('click', () => confirmDelete(entry));
+    grid.appendChild(card);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------------------------------------------------------------
+   EDITOR MODAL
+--------------------------------------------------------------------- */
+let currentEntry = null;
+let pendingImageFile = null;
+let pendingThumbFile = null;
+
+function openEditor(entry) {
+  currentEntry = entry; // null = new
+  pendingImageFile = null;
+  pendingThumbFile = null;
+  const d = entry ? entry.data : {};
+  const isNew = !entry;
+
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `
+    <h2>${isNew ? 'New Artwork' : 'Edit Artwork'}</h2>
+
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="f-title" value="${escapeHtml(d.title || '')}" placeholder="e.g. Nunca dejes que la luz se apague">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Year</label>
+        <input type="number" id="f-year" value="${d.year ?? ''}" min="1900" max="2100">
+      </div>
+      <div class="field">
+        <label>Medium</label>
+        <input type="text" id="f-medium" value="${escapeHtml(d.medium || '')}" placeholder="e.g. Hahnemühle Photo Rag Giclée">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Dimensions</label>
+        <input type="text" id="f-dimensions" value="${escapeHtml(d.dimensions || '')}" placeholder="e.g. 42 × 30 cm">
+      </div>
+      <div class="field">
+        <label>Display order</label>
+        <input type="number" id="f-displayOrder" value="${d.displayOrder ?? 0}">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Category</label>
+        <select id="f-category">
+          ${CATEGORY_OPTIONS.map(o => `<option value="${o}" ${d.category === o ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Collection</label>
+        <select id="f-collection">
+          ${COLLECTION_OPTIONS.map(o => `<option value="${o}" ${d.collection === o ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Short summary <span class="hint">Used on cards and social previews</span></label>
+      <textarea id="f-summary" rows="2">${escapeHtml(d.summary || '')}</textarea>
+    </div>
+
+    <div class="field">
+      <label>Full-size image</label>
+      <div class="image-field">
+        <div class="preview" id="preview-image">${d.image ? `<img src="${d.image}">` : '<span>none</span>'}</div>
+        <input type="file" id="f-image" accept="image/*">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Thumbnail <span class="hint">Smaller/cropped version for gallery cards</span></label>
+      <div class="image-field">
+        <div class="preview" id="preview-thumb">${d.thumbnail ? `<img src="${d.thumbnail}">` : '<span>none</span>'}</div>
+        <input type="file" id="f-thumb" accept="image/*">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Alt text</label>
+      <input type="text" id="f-altText" value="${escapeHtml(d.altText || '')}" placeholder="Describe the image for screen readers/SEO">
+    </div>
+
+    <div class="row2">
+      <div class="checkbox-row">
+        <input type="checkbox" id="f-featured" ${d.featured ? 'checked' : ''}>
+        <label for="f-featured">Featured on homepage</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="f-available" ${d.available !== false ? 'checked' : ''}>
+        <label for="f-available">Available for sale</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Price <span class="hint">Leave blank if sold or not for sale</span></label>
+      <input type="text" id="f-price" value="${escapeHtml(d.price || '')}" placeholder="e.g. £110">
+    </div>
+
+    <div class="field">
+      <label>Full description</label>
+      <textarea id="f-body" rows="6">${escapeHtml(entry ? entry.body : '')}</textarea>
+    </div>
+
+    <div id="modal-error"></div>
+
+    <div class="modal-footer">
+      <button class="btn" id="cancel-btn">Cancel</button>
+      <div class="right">
+        <button class="btn primary" id="save-btn">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('f-image').addEventListener('change', e => {
+    pendingImageFile = e.target.files[0] || null;
+    if (pendingImageFile) {
+      document.getElementById('preview-image').innerHTML = `<img src="${URL.createObjectURL(pendingImageFile)}">`;
+    }
+  });
+  document.getElementById('f-thumb').addEventListener('change', e => {
+    pendingThumbFile = e.target.files[0] || null;
+    if (pendingThumbFile) {
+      document.getElementById('preview-thumb').innerHTML = `<img src="${URL.createObjectURL(pendingThumbFile)}">`;
+    }
+  });
+  document.getElementById('cancel-btn').addEventListener('click', closeModal);
+  document.getElementById('save-btn').addEventListener('click', saveEntry);
+
+  document.getElementById('modal-overlay').hidden = false;
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').hidden = true;
+  currentEntry = null;
+}
+
+/* ---------------------------------------------------------------------
+   SAVE
+--------------------------------------------------------------------- */
+async function saveEntry() {
+  const saveBtn = document.getElementById('save-btn');
+  const errorBox = document.getElementById('modal-error');
+  errorBox.innerHTML = '';
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spinner"></span> Saving…';
+
+  try {
+    const title = document.getElementById('f-title').value.trim();
+    if (!title) throw new Error('Title is required.');
+
+    const isNew = !currentEntry;
+    const slug = currentEntry ? currentEntry.slug : slugify(title);
+    const mdPath = `${CONTENT_DIR}/${slug}.md`;
+
+    const data = {
+      title,
+      year: Number(document.getElementById('f-year').value) || undefined,
+      medium: document.getElementById('f-medium').value.trim(),
+      dimensions: document.getElementById('f-dimensions').value.trim(),
+      category: document.getElementById('f-category').value,
+      collection: document.getElementById('f-collection').value,
+      summary: document.getElementById('f-summary').value.trim(),
+      image: currentEntry?.data.image,
+      thumbnail: currentEntry?.data.thumbnail,
+      altText: document.getElementById('f-altText').value.trim(),
+      featured: document.getElementById('f-featured').checked,
+      available: document.getElementById('f-available').checked,
+      price: document.getElementById('f-price').value.trim() || undefined,
+      displayOrder: Number(document.getElementById('f-displayOrder').value) || 0
+    };
+    const body = document.getElementById('f-body').value;
+
+    // Upload full image if a new one was chosen
+    if (pendingImageFile) {
+      const ext = extOf(pendingImageFile.name);
+      const imgPath = `${IMAGE_DIR}/${slug}.${ext}`;
+      const b64 = await fileToBase64(pendingImageFile);
+      const existing = await ghGetFile(imgPath);
+      await ghPutFile(imgPath, b64, `Upload image for ${title}`, existing?.sha);
+      data.image = `${IMAGE_PUBLIC_PREFIX}/${slug}.${ext}`;
+    }
+
+    // Upload thumbnail if a new one was chosen
+    if (pendingThumbFile) {
+      const ext = extOf(pendingThumbFile.name);
+      const thumbPath = `${THUMB_DIR}/${slug}.${ext}`;
+      const b64 = await fileToBase64(pendingThumbFile);
+      const existing = await ghGetFile(thumbPath);
+      await ghPutFile(thumbPath, b64, `Upload thumbnail for ${title}`, existing?.sha);
+      data.thumbnail = `${THUMB_PUBLIC_PREFIX}/${slug}.${ext}`;
+    }
+
+    // Clean undefined keys
+    Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+    const content = buildFrontmatter(data, body);
+    const b64Content = utf8ToBase64(content);
+
+    const existingMd = isNew ? null : await ghGetFile(mdPath);
+    await ghPutFile(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`, existingMd?.sha);
+
+    closeModal();
+    showBanner(`Saved "${title}".`, 'info');
+    await loadEntries();
+  } catch (err) {
+    errorBox.innerHTML = `<div class="status-banner error">${escapeHtml(err.message)}</div>`;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save';
+  }
+}
+
+/* ---------------------------------------------------------------------
+   DELETE
+--------------------------------------------------------------------- */
+async function confirmDelete(entry) {
+  if (!confirm(`Delete "${entry.data.title || entry.slug}"? This removes the entry file (images are left in place).`)) return;
+  try {
+    await ghDeleteFile(entry.path, entry.sha, `Delete artwork: ${entry.data.title || entry.slug}`);
+    showBanner(`Deleted "${entry.data.title || entry.slug}".`, 'info');
+    await loadEntries();
+  } catch (err) {
+    showBanner(err.message, 'error');
+  }
+}
+
+/* ---------------------------------------------------------------------
+   APP BOOTSTRAP
+--------------------------------------------------------------------- */
+function showApp() {
+  document.getElementById('login-screen').hidden = true;
+  document.getElementById('app-screen').hidden = false;
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn" id="logout-btn">Sign out</button>`;
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  loadEntries().catch(err => showBanner(err.message, 'error'));
+}
+
+document.getElementById('login-btn').addEventListener('click', login);
+document.getElementById('new-entry-btn').addEventListener('click', () => openEditor(null));
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target.id === 'modal-overlay') closeModal();
+});
+
+if (token) {
+  showApp();
+}
+</script>
+</body>
 </html>

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -185,7 +185,10 @@
     <div id="banner-area"></div>
     <div style="display:flex; align-items:center; justify-content:space-between;">
       <div id="list-status" style="color:var(--muted); font-size:14px;"></div>
-      <button class="btn primary" id="new-entry-btn">+ New Artwork</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" id="refresh-btn" title="Re-fetch all artworks from GitHub">Refresh</button>
+        <button class="btn primary" id="new-entry-btn">+ New Artwork</button>
+      </div>
     </div>
     <div class="grid" id="entry-grid"></div>
     <div class="empty-state" id="empty-state" hidden>No artworks yet. Click "New Artwork" to add one.</div>
@@ -304,6 +307,7 @@ async function ghListDir(path) {
 async function ghPutFile(path, base64Content, message, sha) {
   const res = await ghRequest(`/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
     method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message,
       content: base64Content,
@@ -311,12 +315,13 @@ async function ghPutFile(path, base64Content, message, sha) {
       ...(sha ? { sha } : {})
     })
   });
-  return res.json();
+  return res.json(); // { content: { sha, path, ... }, commit: {...} }
 }
 
 async function ghDeleteFile(path, sha, message) {
   await ghRequest(`/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
     method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, sha, branch: BRANCH })
   });
 }
@@ -634,11 +639,24 @@ async function saveEntry() {
     const b64Content = utf8ToBase64(content);
 
     const existingMd = isNew ? null : await ghGetFile(mdPath);
-    await ghPutFile(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`, existingMd?.sha);
+    const putResult = await ghPutFile(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`, existingMd?.sha);
+    const newSha = putResult?.content?.sha;
+
+    // Update local state directly instead of re-fetching every entry from GitHub
+    if (isNew) {
+      entries.push({ path: mdPath, sha: newSha, slug, data, body });
+    } else {
+      const idx = entries.findIndex(e => e.path === currentEntry.path);
+      if (idx !== -1) {
+        entries[idx] = { path: mdPath, sha: newSha, slug, data, body };
+      }
+    }
+    entries.sort((a, b) => (a.data.displayOrder ?? 0) - (b.data.displayOrder ?? 0));
+    renderGrid();
+    setListStatus(`${entries.length} artwork${entries.length === 1 ? '' : 's'}`);
 
     closeModal();
     showBanner(`Saved "${title}".`, 'info');
-    await loadEntries();
   } catch (err) {
     errorBox.innerHTML = `<div class="status-banner error">${escapeHtml(err.message)}</div>`;
     saveBtn.disabled = false;
@@ -653,8 +671,10 @@ async function confirmDelete(entry) {
   if (!confirm(`Delete "${entry.data.title || entry.slug}"? This removes the entry file (images are left in place).`)) return;
   try {
     await ghDeleteFile(entry.path, entry.sha, `Delete artwork: ${entry.data.title || entry.slug}`);
+    entries = entries.filter(e => e.path !== entry.path);
+    renderGrid();
+    setListStatus(`${entries.length} artwork${entries.length === 1 ? '' : 's'}`);
     showBanner(`Deleted "${entry.data.title || entry.slug}".`, 'info');
-    await loadEntries();
   } catch (err) {
     showBanner(err.message, 'error');
   }
@@ -673,6 +693,9 @@ function showApp() {
 
 document.getElementById('login-btn').addEventListener('click', login);
 document.getElementById('new-entry-btn').addEventListener('click', () => openEditor(null));
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  loadEntries().catch(err => showBanner(err.message, 'error'));
+});
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target.id === 'modal-overlay') closeModal();
 });

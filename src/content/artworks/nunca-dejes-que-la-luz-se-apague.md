@@ -6,7 +6,7 @@ dimensions: 42 × 30 cm
 category: Print
 collection: Yellow Balloon
 summary: A reminder to hold onto light and hope, presented as a Hahnemühle Photo Rag Giclée print
-image: /images/artwork/nunca-dejes-que-la-luz-se-apague.jpg
+image: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
 thumbnail: /images/thumbnails/nunca-dejes-que-la-luz-se-apague.webp
 altText: Candle artwork titled No Dejes Que la Luz Se Apague
 featured: true

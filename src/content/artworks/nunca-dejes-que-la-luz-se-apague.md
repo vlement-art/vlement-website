@@ -16,3 +16,4 @@ displayOrder: 1
 ---
 
 A poignant piece that captures the essence of light and hope. Dated August 2026, this is Gallery Proof 1 of 2 in addition to an edition of 50. Certificate of authenticity included.
+

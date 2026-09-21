@@ -10,11 +10,12 @@ image: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
 thumbnail: /images/thumbnails/nunca-dejes-que-la-luz-se-apague.webp
 altText: Candle artwork titled No Dejes Que la Luz Se Apague
 featured: true
-available: false
+available: true
 price: £110
 displayOrder: 1
 ---
 
 A poignant piece that captures the essence of light and hope. Dated August 2026, this is Gallery Proof 1 of 2 in addition to an edition of 50. Certificate of authenticity included.
+
 
 

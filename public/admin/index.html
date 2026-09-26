@@ -486,12 +486,15 @@ function escapeHtml(s) {
    EDITOR MODAL
 --------------------------------------------------------------------- */
 function readEditorDraft(sourceEntry) {
+  const yearValue = document.getElementById('f-year').value.trim();
+  const displayOrderValue = document.getElementById('f-displayOrder').value.trim();
+
   return {
     ...(sourceEntry || {}),
     data: {
       ...(sourceEntry?.data || {}),
       title: document.getElementById('f-title').value.trim(),
-      year: Number(document.getElementById('f-year').value) || undefined,
+      year: yearValue === '' ? undefined : yearValue,
       medium: document.getElementById('f-medium').value.trim(),
       dimensions: document.getElementById('f-dimensions').value.trim(),
       category: document.getElementById('f-category').value,
@@ -503,7 +506,7 @@ function readEditorDraft(sourceEntry) {
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
-      displayOrder: Number(document.getElementById('f-displayOrder').value) || 0
+      displayOrder: displayOrderValue === '' ? '' : displayOrderValue
     },
     body: document.getElementById('f-body').value
   };
@@ -667,6 +670,8 @@ async function saveEntry() {
 
   try {
     const title = document.getElementById('f-title').value.trim();
+    const yearValue = document.getElementById('f-year').value.trim();
+    const displayOrderValue = document.getElementById('f-displayOrder').value.trim();
     if (!title) throw new Error('Title is required.');
 
     const isEditing = !!currentEntry;
@@ -676,7 +681,7 @@ async function saveEntry() {
 
     const data = {
       title,
-      year: Number(document.getElementById('f-year').value) || undefined,
+      year: yearValue === '' ? undefined : Number(yearValue),
       medium: document.getElementById('f-medium').value.trim(),
       dimensions: document.getElementById('f-dimensions').value.trim(),
       category: document.getElementById('f-category').value,
@@ -688,7 +693,7 @@ async function saveEntry() {
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
-      displayOrder: Number(document.getElementById('f-displayOrder').value) || 0
+      displayOrder: displayOrderValue === '' ? 0 : Number(displayOrderValue)
     };
     const body = document.getElementById('f-body').value;
 

@@ -375,6 +375,11 @@ function extOf(filename) {
   const m = /\.([a-zA-Z0-9]+)$/.exec(filename);
   return m ? m[1].toLowerCase() : 'jpg';
 }
+function parseNumberField(value) {
+  if (value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 function resolveUniqueSlug(baseSlug) {
   const normalizedSlug = baseSlug || 'artwork';
   const existingPaths = new Set(
@@ -681,7 +686,7 @@ async function saveEntry() {
 
     const data = {
       title,
-      year: yearValue === '' ? undefined : Number(yearValue),
+      year: parseNumberField(yearValue),
       medium: document.getElementById('f-medium').value.trim(),
       dimensions: document.getElementById('f-dimensions').value.trim(),
       category: document.getElementById('f-category').value,
@@ -693,7 +698,7 @@ async function saveEntry() {
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
-      displayOrder: displayOrderValue === '' ? undefined : Number(displayOrderValue)
+      displayOrder: parseNumberField(displayOrderValue)
     };
     const body = document.getElementById('f-body').value;
 

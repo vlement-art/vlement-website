@@ -701,7 +701,7 @@ async function saveEntry() {
     const sourceEntry = currentEntry || duplicateSource;
     const slug = isEditing
       ? currentEntry.slug
-      : await resolveUniqueSlug(slugify(title), { validateRemote: !!duplicateSource });
+      : await resolveUniqueSlug(slugify(title), { validateRemote: true });
     const mdPath = isEditing ? currentEntry.path : `${CONTENT_DIR}/${slug}.md`;
 
     const data = {

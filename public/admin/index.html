@@ -375,10 +375,6 @@ function extOf(filename) {
   const m = /\.([a-zA-Z0-9]+)$/.exec(filename);
   return m ? m[1].toLowerCase() : 'jpg';
 }
-async function artworkPathExists(path, ignorePath) {
-  if (path === ignorePath) return false;
-  return !!(await ghGetFile(path));
-}
 async function resolveUniqueSlug(baseSlug, ignorePath) {
   const normalizedSlug = baseSlug || 'artwork';
   const existingPaths = new Set(
@@ -386,6 +382,7 @@ async function resolveUniqueSlug(baseSlug, ignorePath) {
       .filter(entry => entry.path !== ignorePath)
       .map(entry => entry.path)
   );
+  let remotePaths = null;
   let copyIndex = 0;
 
   while (true) {
@@ -401,10 +398,21 @@ async function resolveUniqueSlug(baseSlug, ignorePath) {
       continue;
     }
 
-    if (!(await artworkPathExists(mdPath, ignorePath))) {
+    if (!remotePaths) {
+      const remoteFiles = await ghListDir(CONTENT_DIR);
+      remotePaths = new Set(
+        remoteFiles
+          .filter(file => file.type === 'file' && /\.md$/.test(file.name))
+          .map(file => `${CONTENT_DIR}/${file.name}`)
+      );
+      if (ignorePath) remotePaths.delete(ignorePath);
+    }
+
+    if (!remotePaths.has(mdPath)) {
       return slug;
     }
 
+    existingPaths.add(mdPath);
     copyIndex += 1;
   }
 }

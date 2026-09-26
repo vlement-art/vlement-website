@@ -1,7 +1,7 @@
 ---
 title: Ballerinas
 year: 2025
-medium: Hannemulhe Rag Cotton paper
+medium: Hahnemühle Photo Rag Giclée
 dimensions: 42 x 30cm
 category: Print
 collection: Yellow Balloon

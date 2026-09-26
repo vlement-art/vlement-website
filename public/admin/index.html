@@ -375,12 +375,10 @@ function extOf(filename) {
   const m = /\.([a-zA-Z0-9]+)$/.exec(filename);
   return m ? m[1].toLowerCase() : 'jpg';
 }
-function resolveUniqueSlug(baseSlug, ignorePath) {
+function resolveUniqueSlug(baseSlug) {
   const normalizedSlug = baseSlug || 'artwork';
   const existingPaths = new Set(
-    entries
-      .filter(entry => entry.path !== ignorePath)
-      .map(entry => entry.path)
+    entries.map(entry => entry.path)
   );
   let copyIndex = 0;
 

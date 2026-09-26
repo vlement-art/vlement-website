@@ -718,7 +718,7 @@ async function saveEntry() {
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
-      displayOrder: parseNumberField(displayOrderValue)
+      displayOrder: parseNumberField(displayOrderValue) ?? 0
     };
     const body = document.getElementById('f-body').value;
 

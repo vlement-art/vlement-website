@@ -380,11 +380,12 @@ function parseNumberField(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
-function resolveUniqueSlug(baseSlug) {
+async function resolveUniqueSlug(baseSlug, options = {}) {
   const normalizedSlug = baseSlug || 'artwork';
   const existingPaths = new Set(
     entries.map(entry => entry.path)
   );
+  let remotePaths = null;
   let copyIndex = 0;
 
   while (true) {
@@ -398,6 +399,22 @@ function resolveUniqueSlug(baseSlug) {
     if (existingPaths.has(mdPath)) {
       copyIndex += 1;
       continue;
+    }
+
+    if (options.validateRemote) {
+      if (!remotePaths) {
+        const remoteFiles = await ghListDir(CONTENT_DIR);
+        remotePaths = new Set(
+          remoteFiles
+            .filter(file => file.type === 'file' && /\.md$/.test(file.name))
+            .map(file => `${CONTENT_DIR}/${file.name}`)
+        );
+      }
+      if (remotePaths.has(mdPath)) {
+        existingPaths.add(mdPath);
+        copyIndex += 1;
+        continue;
+      }
     }
 
     return slug;
@@ -499,7 +516,7 @@ function readEditorDraft(sourceEntry) {
     data: {
       ...(sourceEntry?.data || {}),
       title: document.getElementById('f-title').value.trim(),
-      year: yearValue === '' ? undefined : yearValue,
+      year: parseNumberField(yearValue),
       medium: document.getElementById('f-medium').value.trim(),
       dimensions: document.getElementById('f-dimensions').value.trim(),
       category: document.getElementById('f-category').value,
@@ -511,7 +528,7 @@ function readEditorDraft(sourceEntry) {
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
-      displayOrder: displayOrderValue === '' ? '' : displayOrderValue
+      displayOrder: parseNumberField(displayOrderValue)
     },
     body: document.getElementById('f-body').value
   };
@@ -526,6 +543,7 @@ function openEditor(entry, options = {}) {
   const d = entry ? entry.data : {};
   const isNew = !entry && !duplicate;
   const title = duplicate ? 'Duplicate Artwork' : isNew ? 'New Artwork' : 'Edit Artwork';
+  const displayOrderValue = d.displayOrder ?? (isNew ? 0 : '');
 
   const modal = document.getElementById('modal');
   modal.innerHTML = `
@@ -554,7 +572,7 @@ function openEditor(entry, options = {}) {
       </div>
       <div class="field">
         <label>Display order</label>
-        <input type="number" id="f-displayOrder" value="${d.displayOrder ?? 0}">
+        <input type="number" id="f-displayOrder" value="${displayOrderValue}">
       </div>
     </div>
 
@@ -681,7 +699,9 @@ async function saveEntry() {
 
     const isEditing = !!currentEntry;
     const sourceEntry = currentEntry || duplicateSource;
-    const slug = isEditing ? currentEntry.slug : resolveUniqueSlug(slugify(title));
+    const slug = isEditing
+      ? currentEntry.slug
+      : await resolveUniqueSlug(slugify(title), { validateRemote: !!duplicateSource });
     const mdPath = isEditing ? currentEntry.path : `${CONTENT_DIR}/${slug}.md`;
 
     const data = {

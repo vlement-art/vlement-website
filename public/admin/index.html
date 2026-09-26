@@ -375,14 +375,13 @@ function extOf(filename) {
   const m = /\.([a-zA-Z0-9]+)$/.exec(filename);
   return m ? m[1].toLowerCase() : 'jpg';
 }
-async function resolveUniqueSlug(baseSlug, ignorePath) {
+function resolveUniqueSlug(baseSlug, ignorePath) {
   const normalizedSlug = baseSlug || 'artwork';
   const existingPaths = new Set(
     entries
       .filter(entry => entry.path !== ignorePath)
       .map(entry => entry.path)
   );
-  let remotePaths = null;
   let copyIndex = 0;
 
   while (true) {
@@ -398,22 +397,7 @@ async function resolveUniqueSlug(baseSlug, ignorePath) {
       continue;
     }
 
-    if (!remotePaths) {
-      const remoteFiles = await ghListDir(CONTENT_DIR);
-      remotePaths = new Set(
-        remoteFiles
-          .filter(file => file.type === 'file' && /\.md$/.test(file.name))
-          .map(file => `${CONTENT_DIR}/${file.name}`)
-      );
-      if (ignorePath) remotePaths.delete(ignorePath);
-    }
-
-    if (!remotePaths.has(mdPath)) {
-      return slug;
-    }
-
-    existingPaths.add(mdPath);
-    copyIndex += 1;
+    return slug;
   }
 }
 
@@ -689,7 +673,7 @@ async function saveEntry() {
 
     const isEditing = !!currentEntry;
     const sourceEntry = currentEntry || duplicateSource;
-    const slug = isEditing ? currentEntry.slug : await resolveUniqueSlug(slugify(title));
+    const slug = isEditing ? currentEntry.slug : resolveUniqueSlug(slugify(title));
     const mdPath = isEditing ? currentEntry.path : `${CONTENT_DIR}/${slug}.md`;
 
     const data = {

@@ -224,7 +224,6 @@ const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 --------------------------------------------------------------------- */
 let token = sessionStorage.getItem('gh_token') || null;
 let entries = []; // { path, sha, slug, data:{...}, body:"" }
-let entriesLoaded = false;
 let currentEntry = null;
 let duplicateSource = null;
 let pendingImageFile = null;
@@ -378,12 +377,15 @@ function extOf(filename) {
 }
 async function artworkPathExists(path, ignorePath) {
   if (path === ignorePath) return false;
-  if (entries.some(entry => entry.path === path && entry.path !== ignorePath)) return true;
-  if (entriesLoaded) return false;
   return !!(await ghGetFile(path));
 }
 async function resolveUniqueSlug(baseSlug, ignorePath) {
   const normalizedSlug = baseSlug || 'artwork';
+  const existingPaths = new Set(
+    entries
+      .filter(entry => entry.path !== ignorePath)
+      .map(entry => entry.path)
+  );
   let copyIndex = 0;
 
   while (true) {
@@ -393,6 +395,11 @@ async function resolveUniqueSlug(baseSlug, ignorePath) {
         ? `${normalizedSlug}-copy`
         : `${normalizedSlug}-copy-${copyIndex}`;
     const mdPath = `${CONTENT_DIR}/${slug}.md`;
+
+    if (existingPaths.has(mdPath)) {
+      copyIndex += 1;
+      continue;
+    }
 
     if (!(await artworkPathExists(mdPath, ignorePath))) {
       return slug;
@@ -421,7 +428,6 @@ function buildFrontmatter(data, body) {
 --------------------------------------------------------------------- */
 async function loadEntries() {
   setListStatus('Loading artworks…');
-  entriesLoaded = false;
   const files = await ghListDir(CONTENT_DIR);
   const mdFiles = files.filter(f => f.type === 'file' && /\.md$/.test(f.name));
   entries = [];
@@ -438,7 +444,6 @@ async function loadEntries() {
     });
   }
   entries.sort((a, b) => (a.data.displayOrder ?? 0) - (b.data.displayOrder ?? 0));
-  entriesLoaded = true;
   renderGrid();
   setListStatus(`${entries.length} artwork${entries.length === 1 ? '' : 's'}`);
 }

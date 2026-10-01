@@ -4,7 +4,7 @@ year: 2025
 medium: Hahnemühle Photo Rag Giclée
 dimensions: 42 x 30cm
 category: Print
-collection: Yellow Balloon
+collection: Luz
 summary: ''
 image: /images/artwork/ballerinas.webp
 thumbnail: /images/thumbnails/ballerinas.webp
@@ -16,3 +16,4 @@ displayOrder: 50
 ---
 
 Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.
+

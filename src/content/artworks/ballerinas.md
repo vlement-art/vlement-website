@@ -17,3 +17,4 @@ displayOrder: 50
 
 Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.
 
+

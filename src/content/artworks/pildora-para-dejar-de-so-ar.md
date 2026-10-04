@@ -11,7 +11,7 @@ thumbnail: /images/thumbnails/pildora-para-dejar-de-so-ar.webp
 altText: original oil painting, surrealism, Magritte tribute, pill painting, conceptual art, French text art, 42x30 canvas panel, contemporary art, dream art
 featured: true
 available: true
-price: '349'
+price: £349
 displayOrder: 1
 ---
 

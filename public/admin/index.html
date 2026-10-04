@@ -211,6 +211,8 @@ const AUTH_WORKER = 'https://ancient-sunset-49c4.jmrdea.workers.dev';
 const CONTENT_DIR = 'src/content/artworks';
 const IMAGE_DIR = 'public/images/artwork';
 const IMAGE_PUBLIC_PREFIX = '/images/artwork';
+const DOWNLOAD_DIR = 'public/images/downloads';
+const DOWNLOAD_PUBLIC_PREFIX = '/images/downloads';
 const THUMB_DIR = 'public/images/thumbnails';
 const THUMB_PUBLIC_PREFIX = '/images/thumbnails';
 
@@ -461,11 +463,15 @@ function escapeHtml(s) {
 let currentEntry = null;
 let pendingImageFile = null;
 let pendingThumbFile = null;
+let pendingPortraitDownloadFile = null;
+let pendingLandscapeDownloadFile = null;
 
 function openEditor(entry) {
   currentEntry = entry; // null = new
   pendingImageFile = null;
   pendingThumbFile = null;
+  pendingPortraitDownloadFile = null;
+  pendingLandscapeDownloadFile = null;
   const d = entry ? entry.data : {};
   const isNew = !entry;
 
@@ -537,6 +543,22 @@ function openEditor(entry) {
     </div>
 
     <div class="field">
+      <label>Portrait download <span class="hint">Optional high-resolution file</span></label>
+      <div class="image-field">
+        <div class="preview" id="preview-portrait-download">${d.portraitDownload ? `<img src="${d.portraitDownload}">` : '<span>none</span>'}</div>
+        <input type="file" id="f-portrait-download" accept="image/*">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Landscape download <span class="hint">Optional high-resolution file</span></label>
+      <div class="image-field">
+        <div class="preview" id="preview-landscape-download">${d.landscapeDownload ? `<img src="${d.landscapeDownload}">` : '<span>none</span>'}</div>
+        <input type="file" id="f-landscape-download" accept="image/*">
+      </div>
+    </div>
+
+    <div class="field">
       <label>Alt text</label>
       <input type="text" id="f-altText" value="${escapeHtml(d.altText || '')}" placeholder="Describe the image for screen readers/SEO">
     </div>
@@ -584,6 +606,18 @@ function openEditor(entry) {
       document.getElementById('preview-thumb').innerHTML = `<img src="${URL.createObjectURL(pendingThumbFile)}">`;
     }
   });
+  document.getElementById('f-portrait-download').addEventListener('change', e => {
+    pendingPortraitDownloadFile = e.target.files[0] || null;
+    if (pendingPortraitDownloadFile) {
+      document.getElementById('preview-portrait-download').innerHTML = `<img src="${URL.createObjectURL(pendingPortraitDownloadFile)}">`;
+    }
+  });
+  document.getElementById('f-landscape-download').addEventListener('change', e => {
+    pendingLandscapeDownloadFile = e.target.files[0] || null;
+    if (pendingLandscapeDownloadFile) {
+      document.getElementById('preview-landscape-download').innerHTML = `<img src="${URL.createObjectURL(pendingLandscapeDownloadFile)}">`;
+    }
+  });
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('save-btn').addEventListener('click', saveEntry);
 
@@ -623,6 +657,8 @@ async function saveEntry() {
       summary: document.getElementById('f-summary').value.trim(),
       image: currentEntry?.data.image,
       thumbnail: currentEntry?.data.thumbnail,
+      portraitDownload: currentEntry?.data.portraitDownload,
+      landscapeDownload: currentEntry?.data.landscapeDownload,
       altText: document.getElementById('f-altText').value.trim(),
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
@@ -647,6 +683,19 @@ async function saveEntry() {
       const b64 = await fileToBase64(pendingThumbFile);
       await ghPutFileSafe(thumbPath, b64, `Upload thumbnail for ${title}`);
       data.thumbnail = `${THUMB_PUBLIC_PREFIX}/${slug}.${ext}`;
+    }
+
+    // Upload optional orientation-specific download files
+    for (const [orientation, file] of [
+      ['portrait', pendingPortraitDownloadFile],
+      ['landscape', pendingLandscapeDownloadFile]
+    ]) {
+      if (!file) continue;
+      const ext = extOf(file.name);
+      const downloadPath = `${DOWNLOAD_DIR}/${slug}-${orientation}.${ext}`;
+      const b64 = await fileToBase64(file);
+      await ghPutFileSafe(downloadPath, b64, `Upload ${orientation} download for ${title}`);
+      data[`${orientation}Download`] = `${DOWNLOAD_PUBLIC_PREFIX}/${slug}-${orientation}.${ext}`;
     }
 
     // Clean undefined keys

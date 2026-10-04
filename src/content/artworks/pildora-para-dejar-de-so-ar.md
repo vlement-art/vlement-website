@@ -6,8 +6,8 @@ dimensions: 42x30cm
 category: Original painting
 collection: Summer 2024
 summary: '#savina,#pastillas para no soñar,#Vlement'
-image: /images/artwork/pildora-para-dejar-de-so-ar.jpg
-thumbnail: /images/thumbnails/pildora-para-dejar-de-so-ar.jpg
+image: /images/artwork/pildora-para-dejar-de-so-ar.webp
+thumbnail: /images/thumbnails/pildora-para-dejar-de-so-ar.webp
 altText: ''
 featured: true
 available: true

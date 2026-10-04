@@ -4,7 +4,7 @@ year: 2024
 medium: Canvas Pannel
 dimensions: 42x30cm
 category: Original painting
-collection: Luz
+collection: Summer 2024
 summary: '#savina,#pastillas para no soñar,#Vlement'
 image: /images/artwork/pildora-para-dejar-de-so-ar.webp
 thumbnail: /images/thumbnails/pildora-para-dejar-de-so-ar.webp

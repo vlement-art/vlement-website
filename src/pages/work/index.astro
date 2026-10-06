@@ -52,7 +52,7 @@ const description = `Browse original paintings, mixed-media works and limited ed
       </label>
     </form>
 
-    <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3" id="artworkGrid">
+    <div class="grid grid-cols-1 items-start gap-8 sm:grid-cols-2 lg:grid-cols-3" id="artworkGrid">
       {allArtworks.map((artwork, i) => (
         <ArtworkCard
           slug={artwork.slug}

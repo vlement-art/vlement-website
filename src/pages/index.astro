@@ -52,7 +52,7 @@ const exhibitions = [
       <h2 id="featured-heading" class="font-serif text-3xl italic sm:text-4xl">Featured work</h2>
       <a href="/work" class="text-xs uppercase tracking-wider text-muted hover:text-ink">View all &rarr;</a>
     </div>
-    <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid grid-cols-1 items-start gap-8 sm:grid-cols-2 lg:grid-cols-4">
       {featured.map((artwork, i) => (
         <ArtworkCard
           slug={artwork.slug}

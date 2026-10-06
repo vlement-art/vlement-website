@@ -10,6 +10,9 @@ interface Props {
   collection: string;
   available: boolean;
   price?: string;
+  /** Real image dimensions, if known. Used to reserve space and avoid layout shift. */
+  width?: number;
+  height?: number;
   /** Set true for the first few cards above the fold so their images load eagerly. */
   eager?: boolean;
 }
@@ -25,6 +28,8 @@ const {
   collection,
   available,
   price,
+  width = 800,
+  height = 800,
   eager = false,
 } = Astro.props;
 ---
@@ -37,15 +42,15 @@ const {
   data-collection={collection.toLowerCase()}
 >
   <a href={`/work/${slug}`} class="block">
-    <div class="overflow-hidden bg-[color-mix(in_srgb,var(--paper)_75%,#888_25%)]" style="aspect-ratio: 1 / 1;">
+    <div class="overflow-hidden bg-[color-mix(in_srgb,var(--paper)_75%,#888_25%)]">
       <img
         src={thumbnail}
         alt={altText}
-        width="640"
-        height="640"
+        width={width}
+        height={height}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+        class="block h-auto w-full transition-transform duration-200 group-hover:scale-[1.02]"
       />
     </div>
     <div class="mt-3">

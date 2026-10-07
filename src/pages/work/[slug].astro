@@ -81,6 +81,20 @@ const structuredData = {
         <p class="mt-3 text-xs text-muted">
           &copy; {site.copyrightYear} {site.artistName}. Image shown at reduced resolution; not for reproduction.
         </p>
+        {(data.portraitDownload || data.landscapeDownload) && (
+          <div class="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-wider">
+            {data.portraitDownload && (
+              <a href={data.portraitDownload} download class="border border-line px-3 py-2 hover:border-ink">
+                Download portrait
+              </a>
+            )}
+            {data.landscapeDownload && (
+              <a href={data.landscapeDownload} download class="border border-line px-3 py-2 hover:border-ink">
+                Download landscape
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       <div>

@@ -9,7 +9,7 @@ summary: ''
 image: /images/artwork/la-luz.webp
 thumbnail: /images/thumbnails/la-luz.webp
 altText: Still Life Painting of a Red Book, Candle, and Hanging Lightbulb
-featured: false
+featured: true
 available: false
 displayOrder: 1
 ---

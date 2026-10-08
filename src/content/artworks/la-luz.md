@@ -15,3 +15,4 @@ displayOrder: 1
 ---
 
 A quiet study in light and shadow: a worn red book, a pencil, a candle, and a lone bulb illuminate a wooden table against the darkness.
+

@@ -224,6 +224,10 @@ const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 --------------------------------------------------------------------- */
 let token = sessionStorage.getItem('gh_token') || null;
 let entries = []; // { path, sha, slug, data:{...}, body:"" }
+let currentEntry = null;
+let duplicateSource = null;
+let pendingImageFile = null;
+let pendingThumbFile = null;
 
 /* ---------------------------------------------------------------------
    AUTH — reuses the existing Sveltia OAuth worker/callback
@@ -371,6 +375,51 @@ function extOf(filename) {
   const m = /\.([a-zA-Z0-9]+)$/.exec(filename);
   return m ? m[1].toLowerCase() : 'jpg';
 }
+function parseNumberField(value) {
+  if (value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+async function resolveUniqueSlug(baseSlug, options = {}) {
+  const normalizedSlug = baseSlug || 'artwork';
+  const existingPaths = new Set(
+    entries.map(entry => entry.path)
+  );
+  let remotePaths = null;
+  let copyIndex = 0;
+
+  while (true) {
+    const slug = copyIndex === 0
+      ? normalizedSlug
+      : copyIndex === 1
+        ? `${normalizedSlug}-copy`
+        : `${normalizedSlug}-copy-${copyIndex}`;
+    const mdPath = `${CONTENT_DIR}/${slug}.md`;
+
+    if (existingPaths.has(mdPath)) {
+      copyIndex += 1;
+      continue;
+    }
+
+    if (options.validateRemote) {
+      if (!remotePaths) {
+        const remoteFiles = await ghListDir(CONTENT_DIR);
+        remotePaths = new Set(
+          remoteFiles
+            .filter(file => file.type === 'file' && /\.md$/.test(file.name))
+            .map(file => `${CONTENT_DIR}/${file.name}`)
+        );
+      }
+      if (remotePaths.has(mdPath)) {
+        existingPaths.add(mdPath);
+        copyIndex += 1;
+        continue;
+      }
+    }
+
+    return slug;
+  }
+}
 
 /* ---------------------------------------------------------------------
    FRONTMATTER PARSE / BUILD
@@ -458,20 +507,47 @@ function escapeHtml(s) {
 /* ---------------------------------------------------------------------
    EDITOR MODAL
 --------------------------------------------------------------------- */
-let currentEntry = null;
-let pendingImageFile = null;
-let pendingThumbFile = null;
+function readEditorDraft(sourceEntry) {
+  const yearValue = document.getElementById('f-year').value.trim();
+  const displayOrderValue = document.getElementById('f-displayOrder').value.trim();
 
-function openEditor(entry) {
-  currentEntry = entry; // null = new
+  return {
+    ...(sourceEntry || {}),
+    data: {
+      ...(sourceEntry?.data || {}),
+      title: document.getElementById('f-title').value.trim(),
+      year: parseNumberField(yearValue),
+      medium: document.getElementById('f-medium').value.trim(),
+      dimensions: document.getElementById('f-dimensions').value.trim(),
+      category: document.getElementById('f-category').value,
+      collection: document.getElementById('f-collection').value,
+      summary: document.getElementById('f-summary').value.trim(),
+      image: sourceEntry?.data.image,
+      thumbnail: sourceEntry?.data.thumbnail,
+      altText: document.getElementById('f-altText').value.trim(),
+      featured: document.getElementById('f-featured').checked,
+      available: document.getElementById('f-available').checked,
+      price: document.getElementById('f-price').value.trim() || undefined,
+      displayOrder: parseNumberField(displayOrderValue)
+    },
+    body: document.getElementById('f-body').value
+  };
+}
+
+function openEditor(entry, options = {}) {
+  const duplicate = !!options.duplicate;
+  currentEntry = duplicate ? null : entry; // null = new
+  duplicateSource = duplicate ? entry : null;
   pendingImageFile = null;
   pendingThumbFile = null;
   const d = entry ? entry.data : {};
-  const isNew = !entry;
+  const isNew = !entry && !duplicate;
+  const title = duplicate ? 'Duplicate Artwork' : isNew ? 'New Artwork' : 'Edit Artwork';
+  const displayOrderValue = d.displayOrder ?? (isNew ? 0 : '');
 
   const modal = document.getElementById('modal');
   modal.innerHTML = `
-    <h2>${isNew ? 'New Artwork' : 'Edit Artwork'}</h2>
+    <h2>${title}</h2>
 
     <div class="field">
       <label>Title</label>
@@ -496,7 +572,7 @@ function openEditor(entry) {
       </div>
       <div class="field">
         <label>Display order</label>
-        <input type="number" id="f-displayOrder" value="${d.displayOrder ?? 0}">
+        <input type="number" id="f-displayOrder" value="${displayOrderValue}">
       </div>
     </div>
 
@@ -567,6 +643,7 @@ function openEditor(entry) {
     <div class="modal-footer">
       <button class="btn" id="cancel-btn">Cancel</button>
       <div class="right">
+        ${entry && !duplicate ? '<button class="btn" id="duplicate-btn">Duplicate</button>' : ''}
         <button class="btn primary" id="save-btn">Save</button>
       </div>
     </div>
@@ -586,6 +663,14 @@ function openEditor(entry) {
   });
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('save-btn').addEventListener('click', saveEntry);
+  const duplicateBtn = document.getElementById('duplicate-btn');
+  if (duplicateBtn) {
+    duplicateBtn.addEventListener('click', () => {
+      const sourceEntry = readEditorDraft(currentEntry);
+      closeModal();
+      openEditor(sourceEntry, { duplicate: true });
+    });
+  }
 
   document.getElementById('modal-overlay').hidden = false;
 }
@@ -593,6 +678,7 @@ function openEditor(entry) {
 function closeModal() {
   document.getElementById('modal-overlay').hidden = true;
   currentEntry = null;
+  duplicateSource = null;
 }
 
 /* ---------------------------------------------------------------------
@@ -607,27 +693,32 @@ async function saveEntry() {
 
   try {
     const title = document.getElementById('f-title').value.trim();
+    const yearValue = document.getElementById('f-year').value.trim();
+    const displayOrderValue = document.getElementById('f-displayOrder').value.trim();
     if (!title) throw new Error('Title is required.');
 
-    const isNew = !currentEntry;
-    const slug = currentEntry ? currentEntry.slug : slugify(title);
-    const mdPath = `${CONTENT_DIR}/${slug}.md`;
+    const isEditing = !!currentEntry;
+    const sourceEntry = currentEntry || duplicateSource;
+    const slug = isEditing
+      ? currentEntry.slug
+      : await resolveUniqueSlug(slugify(title), { validateRemote: true });
+    const mdPath = isEditing ? currentEntry.path : `${CONTENT_DIR}/${slug}.md`;
 
     const data = {
       title,
-      year: Number(document.getElementById('f-year').value) || undefined,
+      year: parseNumberField(yearValue),
       medium: document.getElementById('f-medium').value.trim(),
       dimensions: document.getElementById('f-dimensions').value.trim(),
       category: document.getElementById('f-category').value,
       collection: document.getElementById('f-collection').value,
       summary: document.getElementById('f-summary').value.trim(),
-      image: currentEntry?.data.image,
-      thumbnail: currentEntry?.data.thumbnail,
+      image: sourceEntry?.data.image,
+      thumbnail: sourceEntry?.data.thumbnail,
       altText: document.getElementById('f-altText').value.trim(),
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
-      displayOrder: Number(document.getElementById('f-displayOrder').value) || 0
+      displayOrder: parseNumberField(displayOrderValue) ?? 0
     };
     const body = document.getElementById('f-body').value;
 
@@ -655,11 +746,11 @@ async function saveEntry() {
     const content = buildFrontmatter(data, body);
     const b64Content = utf8ToBase64(content);
 
-    const putResult = await ghPutFileSafe(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`);
+    const putResult = await ghPutFileSafe(mdPath, b64Content, `${isEditing ? 'Update' : 'Add'} artwork: ${title}`);
     const newSha = putResult?.content?.sha;
 
     // Update local state directly instead of re-fetching every entry from GitHub
-    if (isNew) {
+    if (!isEditing) {
       entries.push({ path: mdPath, sha: newSha, slug, data, body });
     } else {
       const idx = entries.findIndex(e => e.path === currentEntry.path);

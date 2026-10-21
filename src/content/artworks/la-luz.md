@@ -6,8 +6,8 @@ dimensions: 42 x 30cm
 category: Original painting
 collection: Luz
 summary: ''
-image: /images/artwork/la-luz.jpg
-thumbnail: /images/thumbnails/la-luz.jpg
+image: /images/artwork/la-luz.webp
+thumbnail: /images/thumbnails/la-luz.webp
 altText: Still Life Painting of a Red Book, Candle, and Hanging Lightbulb
 featured: true
 available: true

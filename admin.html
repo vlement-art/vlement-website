@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Artwork database export | Vlement J Rodrigues</title>
+<style>
+:root{color-scheme:light;--bg:#f8f6f1;--text:#191919;--muted:#6d6d6d;--gold:#a8864a}
+*{box-sizing:border-box}
+body{margin:0;padding:3rem 1.5rem;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+main{max-width:640px;margin:auto;background:#fff;padding:2rem;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+h1{font:italic 400 clamp(1.8rem,5vw,2.5rem) Georgia,serif;margin-top:0}
+p{line-height:1.6}
+button{padding:.7rem 1rem;border:1px solid var(--gold);background:var(--gold);color:#fff;font:inherit;cursor:pointer}
+button:disabled{cursor:wait;opacity:.65}
+#status{min-height:1.5em;margin-bottom:0}
+a{color:var(--gold)}
+</style>
+</head>
+<body>
+<main>
+<h1>Artwork database export</h1>
+<p>Builds a SQLite database from the artwork cards in the gallery and downloads it as <code>artworks.sqlite</code>.</p>
+<p>This static export page has no sign-in and does not change or upload files to the repository.</p>
+<button id="export" type="button">Export artworks to SQLite</button>
+<p id="status" role="status" aria-live="polite"></p>
+<p><a href="./index.html">Back to the gallery</a></p>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script>
+const exportButton = document.getElementById("export");
+const status = document.getElementById("status");
+const sqlJsBaseUrl = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/";
+
+function readArtworks(html) {
+  const gallery = new DOMParser().parseFromString(html, "text/html");
+  const cards = [...gallery.querySelectorAll(".grid article.card")];
+  if (cards.length === 0) {
+    throw new Error("No artwork cards were found in the gallery.");
+  }
+
+  return cards.map((card, index) => {
+    const valueFor = (label) => {
+      const field = [...card.querySelectorAll(".meta > div")].find(
+        (item) => item.querySelector("strong")?.textContent.trim() === label
+      );
+      if (!field) return null;
+      const clone = field.cloneNode(true);
+      clone.querySelector("strong").remove();
+      return clone.textContent.trim() || null;
+    };
+    const title = card.querySelector(".title")?.textContent.trim();
+    const artistParts = card.querySelector(".artist")?.textContent.trim().split(/\s+·\s+/) ?? [];
+    const imagePath = card.querySelector(".frame img")?.getAttribute("src");
+    const artworkId = valueFor("ID");
+
+    if (!title || !artistParts[0] || !imagePath || !artworkId) {
+      throw new Error(`Artwork card ${index + 1} is missing a title, artist, image, or ID.`);
+    }
+
+    const parsedYear = Number(artistParts[1]);
+    return {
+      artworkId,
+      title,
+      artist: artistParts[0],
+      year: Number.isInteger(parsedYear) ? parsedYear : null,
+      medium: valueFor("Medium"),
+      dimensions: valueFor("Dimensions"),
+      collection: valueFor("Collection"),
+      edition: valueFor("Edition"),
+      certificate: valueFor("Certificate"),
+      status: card.querySelector(".status")?.textContent.trim() || null,
+      description: card.querySelector(".label > p")?.textContent.trim() || null,
+      imagePath
+    };
+  });
+}
+
+async function exportDatabase() {
+  exportButton.disabled = true;
+  status.textContent = "Preparing database…";
+
+  try {
+    if (typeof window.initSqlJs !== "function") {
+      throw new Error("The SQLite library did not load. Check your connection and try again.");
+    }
+
+    const response = await fetch("./index.html", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Could not load the gallery (${response.status}).`);
+    }
+    const artworks = readArtworks(await response.text());
+    const SQL = await window.initSqlJs({
+      locateFile: (file) => `${sqlJsBaseUrl}${file}`
+    });
+    const db = new SQL.Database();
+    try {
+      db.run(`CREATE TABLE artworks (
+        artwork_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        year INTEGER,
+        medium TEXT,
+        dimensions TEXT,
+        collection TEXT,
+        edition TEXT,
+        certificate TEXT,
+        status TEXT,
+        description TEXT,
+        image_path TEXT NOT NULL
+      )`);
+      const insert = db.prepare(`INSERT INTO artworks
+        (artwork_id, title, artist, year, medium, dimensions, collection, edition,
+         certificate, status, description, image_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+
+      try {
+        for (const artwork of artworks) {
+          insert.run([
+            artwork.artworkId, artwork.title, artwork.artist, artwork.year,
+            artwork.medium, artwork.dimensions, artwork.collection, artwork.edition,
+            artwork.certificate, artwork.status, artwork.description, artwork.imagePath
+          ]);
+        }
+      } finally {
+        insert.free();
+      }
+
+      const database = new Blob([db.export()], { type: "application/vnd.sqlite3" });
+      const downloadUrl = URL.createObjectURL(database);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "artworks.sqlite";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+    } finally {
+      db.close();
+    }
+
+    status.textContent = `Exported ${artworks.length} artworks to artworks.sqlite.`;
+  } catch (error) {
+    status.textContent = error instanceof Error ? error.message : "The export failed.";
+  } finally {
+    exportButton.disabled = false;
+  }
+}
+
+exportButton.addEventListener("click", exportDatabase);
+</script>
+</body>
+</html>

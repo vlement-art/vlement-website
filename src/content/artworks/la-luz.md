@@ -6,8 +6,8 @@ dimensions: 42 x 30cm
 category: Original painting
 collection: Luz
 summary: ''
-image: /images/artwork/la-luz.webp
-thumbnail: /images/thumbnails/la-luz.webp
+image: /images/artwork/la-luz.jpg
+thumbnail: /images/thumbnails/la-luz.jpg
 altText: Still Life Painting of a Red Book, Candle, and Hanging Lightbulb
 featured: true
 available: true
@@ -16,4 +16,5 @@ displayOrder: 1
 ---
 
 A quiet study in light and shadow: a worn red book, a pencil, a candle, and a lone bulb illuminate a wooden table against the darkness.
+
 

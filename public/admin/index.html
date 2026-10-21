@@ -6,7 +6,6 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Artworks Admin — vlement</title>
 <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAP+lSURBVHhe7J13nBy1+f8[...]
-<script src="js-yaml.min.js"></script>
 <script src="https://sql.js.org/dist/sql-wasm.js"></script>
 <style>
   :root {
@@ -384,6 +383,34 @@ function extOf(filename) {
 /* ---------------------------------------------------------------------
    FRONTMATTER PARSE / BUILD
 --------------------------------------------------------------------- */
+let yamlLibraryPromise = null;
+function ensureYamlLibrary() {
+  if (window.jsyaml?.load && window.jsyaml?.dump) {
+    return Promise.resolve(window.jsyaml);
+  }
+  if (!yamlLibraryPromise) {
+    yamlLibraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = new URL('/admin/js-yaml.min.js', location.origin).href;
+      script.onload = () => {
+        if (window.jsyaml?.load && window.jsyaml?.dump) {
+          resolve(window.jsyaml);
+        } else {
+          reject(new Error('The YAML parser loaded but is unavailable. Refresh the page and try again.'));
+        }
+      };
+      script.onerror = () => {
+        reject(new Error(`Could not load the YAML parser from ${script.src}. Refresh the page and try again.`));
+      };
+      document.head.appendChild(script);
+    }).catch(err => {
+      yamlLibraryPromise = null;
+      throw err;
+    });
+  }
+  return yamlLibraryPromise;
+}
+
 function parseFrontmatter(raw) {
   const match = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(raw);
   if (!match) return { data: {}, body: raw };
@@ -399,6 +426,7 @@ function buildFrontmatter(data, body) {
    LOAD ENTRIES
 --------------------------------------------------------------------- */
 async function loadEntries() {
+  await ensureYamlLibrary();
   setListStatus('Loading artworks…');
   const files = await ghListDir(CONTENT_DIR);
   const mdFiles = files.filter(f => f.type === 'file' && /\.md$/.test(f.name));
@@ -615,6 +643,7 @@ async function saveEntry() {
   saveBtn.innerHTML = '<span class="spinner"></span> Saving…';
 
   try {
+    await ensureYamlLibrary();
     const title = document.getElementById('f-title').value.trim();
     if (!title) throw new Error('Title is required.');
 

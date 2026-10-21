@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Artworks Admin — vlement</title>
-<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAP+lSURBVHhe7J13nBy1+f8[...]
-<script src="https://sql.js.org/dist/sql-wasm.js"></script>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   :root {
     --bg: #f7f6f3;
@@ -738,6 +737,34 @@ async function confirmDelete(entry) {
 /* ---------------------------------------------------------------------
    SQLITE EXPORT
 --------------------------------------------------------------------- */
+let sqlJsLibraryPromise = null;
+function ensureSqlJsLibrary() {
+  if (typeof window.initSqlJs === 'function') {
+    return Promise.resolve(window.initSqlJs);
+  }
+  if (!sqlJsLibraryPromise) {
+    sqlJsLibraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://sql.js.org/dist/sql-wasm.js';
+      script.onload = () => {
+        if (typeof window.initSqlJs === 'function') {
+          resolve(window.initSqlJs);
+        } else {
+          reject(new Error('sql.js loaded but its initializer is unavailable. Check the browser console and try again.'));
+        }
+      };
+      script.onerror = () => {
+        reject(new Error(`Could not load sql.js from ${script.src}. Check your network connection and try again.`));
+      };
+      document.head.appendChild(script);
+    }).catch(err => {
+      sqlJsLibraryPromise = null;
+      throw err;
+    });
+  }
+  return sqlJsLibraryPromise;
+}
+
 async function exportArtworksSqlite() {
   const btn = document.getElementById('export-db-btn');
   if (!btn) return;
@@ -747,10 +774,7 @@ async function exportArtworksSqlite() {
   btn.textContent = 'Building…';
 
   try {
-    if (typeof initSqlJs !== 'function') {
-      throw new Error('sql.js is not loaded. Please refresh the page and retry.');
-    }
-
+    const initSqlJs = await ensureSqlJsLibrary();
     const SQL = await initSqlJs({
       locateFile: file => `https://sql.js.org/dist/${file}`
     });

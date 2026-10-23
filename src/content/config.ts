@@ -19,6 +19,9 @@ const artworks = defineCollection({
     image: z.string(),
     // Path relative to /public, e.g. /images/thumbnails/sad-bunny.webp
     thumbnail: z.string(),
+    // Optional high-resolution files offered for download in each orientation.
+    portraitDownload: z.string().optional(),
+    landscapeDownload: z.string().optional(),
     altText: z.string(),
     featured: z.boolean().default(false),
     available: z.boolean().default(true),

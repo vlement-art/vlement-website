@@ -43,6 +43,20 @@ collections:
         media_folder: "public/images/thumbnails"
         public_folder: "/images/thumbnails"
         hint: "Smaller image used on gallery cards — upload a cropped/lighter version"
+      - label: Portrait download
+        name: portraitDownload
+        widget: image
+        required: false
+        media_folder: "public/images/downloads"
+        public_folder: "/images/downloads"
+        hint: "Optional high-resolution portrait image offered for download"
+      - label: Landscape download
+        name: landscapeDownload
+        widget: image
+        required: false
+        media_folder: "public/images/downloads"
+        public_folder: "/images/downloads"
+        hint: "Optional high-resolution landscape image offered for download"
       - { label: Alt text, name: altText, widget: string, hint: "Describe the image for screen readers/SEO" }
       - { label: Featured on homepage, name: featured, widget: boolean, default: false }
       - { label: Available for sale, name: available, widget: boolean, default: true }

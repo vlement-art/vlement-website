@@ -9,6 +9,10 @@ const featured = allArtworks
   .filter((a) => a.data.featured)
   .sort((a, b) => a.data.displayOrder - b.data.displayOrder)
   .slice(0, 4);
+const heroArtwork = featured[0] ?? [...allArtworks].sort((a, b) => a.data.displayOrder - b.data.displayOrder)[0];
+const selectedWorks = heroArtwork
+  ? featured.filter((artwork) => artwork.slug !== heroArtwork.slug)
+  : featured;
 
 const exhibitions = [
   {
@@ -21,39 +25,60 @@ const exhibitions = [
 ---
 
 <BaseLayout title={`${site.artistName} — Original Paintings & Prints`} description={site.description}>
-  <section class="mx-auto max-w-3xl px-6 pb-16 pt-24 text-center sm:pt-32">
-    <p class="mb-4 text-xs uppercase tracking-[0.22em] text-muted">
-      {site.location} · Painting / Mixed Media / Printmaking
-    </p>
-    <h1 class="mx-auto max-w-3xl font-serif text-6xl italic leading-[0.9] tracking-tight sm:text-8xl">
-      {site.artistName}
-    </h1>
-    <p class="mx-auto mt-8 max-w-md text-lg text-muted">
-      One subject. Many lives. Original paintings and limited edition prints by {site.artistName}.
-    </p>
-    <div class="mt-8 flex flex-wrap justify-center gap-3">
+  <section class="mx-auto grid max-w-6xl items-center gap-8 px-6 pb-16 pt-8 sm:gap-12 sm:pb-24 sm:pt-12 lg:min-h-[calc(100svh-5rem)] lg:grid-cols-[1.2fr_0.8fr] lg:gap-16" aria-labelledby="hero-heading">
+    {heroArtwork && (
       <a
-        href="/work"
-        class="inline-flex min-h-[2.75rem] items-center justify-center border border-ink bg-ink px-4 py-2 text-xs uppercase tracking-wider text-paper transition-transform duration-200 hover:-translate-y-px"
+        href={`/work/${heroArtwork.slug}`}
+        class="group order-first block"
+        aria-label={`View ${heroArtwork.data.title}`}
       >
-        View all work
+        <div class="flex aspect-[3/4] max-h-[72svh] items-center justify-center overflow-hidden bg-surface">
+          <img
+            src={heroArtwork.data.image}
+            alt={heroArtwork.data.altText}
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+            class="max-h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.015]"
+          />
+        </div>
+        <p class="mt-3 flex items-baseline justify-between gap-4 text-xs text-muted">
+          <span class="font-serif text-base italic text-ink">{heroArtwork.data.title}</span>
+          <span>{heroArtwork.data.year} · {heroArtwork.data.medium}</span>
+        </p>
       </a>
-      <a
-        href="/contact"
-        class="inline-flex min-h-[2.75rem] items-center justify-center border border-line px-4 py-2 text-xs uppercase tracking-wider text-muted transition-transform duration-200 hover:-translate-y-px"
-      >
-        Make an enquiry
-      </a>
+    )}
+    <div class="lg:py-12">
+      <p class="mb-5 text-xs uppercase tracking-[0.22em] text-muted">
+        {site.location} · Painting · Mixed media · Printmaking
+      </p>
+      <h1 id="hero-heading" class="max-w-xl font-serif text-5xl italic leading-[0.92] tracking-tight sm:text-7xl">
+        {site.shortName}<br />One subject.<br />Many lives.
+      </h1>
+      <p class="mt-6 max-w-md text-base leading-relaxed text-muted sm:mt-8 sm:text-lg">
+        Original paintings and limited-edition prints by {site.artistName}.
+      </p>
+      <div class="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm">
+        <a href="/work" class="border-b border-ink pb-1 hover:text-accent-dark">
+          Explore the work <span aria-hidden="true">↗</span>
+        </a>
+        <a href="/about" class="border-b border-line pb-1 text-muted hover:border-ink hover:text-ink">
+          Artist&apos;s practice
+        </a>
+      </div>
     </div>
   </section>
 
   <section class="mx-auto max-w-6xl px-6 pb-24" aria-labelledby="featured-heading">
-    <div class="mb-6 flex items-end justify-between gap-4 border-t border-line pt-10">
-      <h2 id="featured-heading" class="font-serif text-3xl italic sm:text-4xl">Featured work</h2>
+    <div class="mb-8 flex items-end justify-between gap-4 border-t border-line pt-10 sm:mb-10 sm:pt-12">
+      <div>
+        <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted">A selection</p>
+        <h2 id="featured-heading" class="font-serif text-3xl italic sm:text-4xl">Selected works</h2>
+      </div>
       <a href="/work" class="text-xs uppercase tracking-wider text-muted hover:text-ink">View all &rarr;</a>
     </div>
-    <div class="grid grid-cols-1 items-start gap-8 sm:grid-cols-2 lg:grid-cols-4">
-      {featured.map((artwork, i) => (
+    <div class="grid grid-cols-1 items-start gap-x-8 gap-y-12 sm:grid-cols-2 sm:gap-x-10 sm:gap-y-16">
+      {selectedWorks.map((artwork, i) => (
         <ArtworkCard
           slug={artwork.slug}
           title={artwork.data.title}
@@ -71,8 +96,8 @@ const exhibitions = [
     </div>
   </section>
 
-  <section class="mx-auto grid max-w-6xl gap-10 border-t border-line px-6 py-16 sm:grid-cols-[0.8fr_1fr]" aria-labelledby="about-heading">
-    <h2 id="about-heading" class="font-serif text-4xl italic leading-[0.95] sm:text-5xl">
+  <section class="mx-auto grid max-w-6xl gap-8 border-t border-line px-6 py-20 sm:grid-cols-[0.8fr_1fr] sm:gap-10 sm:py-24" aria-labelledby="about-heading">
+    <h2 id="about-heading" class="font-serif text-4xl italic leading-[0.95] sm:text-6xl">
       One subject.<br />Many lives.
     </h2>
     <div class="max-w-md">
@@ -88,21 +113,30 @@ const exhibitions = [
     </div>
   </section>
 
-  <section class="mx-auto max-w-6xl border-t border-line px-6 py-16" aria-labelledby="exhibitions-heading">
-    <h2 id="exhibitions-heading" class="mb-6 font-serif text-3xl italic sm:text-4xl">Exhibitions</h2>
-    <ul class="divide-y divide-line border-y border-line">
+  <section class="mx-auto max-w-6xl border-t border-line px-6 py-20 sm:py-24" aria-labelledby="exhibitions-heading">
+    <div class="mb-8 flex items-end justify-between gap-4">
+      <div>
+        <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted">Selected appearances</p>
+        <h2 id="exhibitions-heading" class="font-serif text-3xl italic sm:text-4xl">Exhibitions</h2>
+      </div>
+    </div>
+    <ul class="border-y border-line">
       {exhibitions.map((ex) => (
-        <li>
-          <a href={ex.url} target="_blank" rel="noopener noreferrer" class="flex items-baseline justify-between gap-4 py-4 hover:opacity-60">
-            <span class="font-serif text-lg italic">{ex.title}</span>
-            <span class="text-right text-xs text-muted">{ex.venue} · {ex.dates}</span>
+        <li class="grid gap-4 py-6 sm:grid-cols-[10rem_1fr_auto] sm:items-center sm:gap-8 sm:py-8">
+          <p class="text-xs uppercase tracking-wider text-muted">{ex.dates}</p>
+          <div>
+            <h3 class="font-serif text-2xl italic sm:text-3xl">{ex.title}</h3>
+            <p class="mt-1 text-sm text-muted">{ex.venue}</p>
+          </div>
+          <a href={ex.url} target="_blank" rel="noopener noreferrer" class="text-sm hover:text-accent-dark">
+            Exhibition details <span aria-hidden="true">↗</span>
           </a>
         </li>
       ))}
     </ul>
   </section>
 
-  <section class="mx-auto max-w-6xl border-t border-line px-6 py-16" aria-labelledby="contact-heading">
+  <section class="mx-auto max-w-6xl border-t border-line px-6 py-20 sm:py-24" aria-labelledby="contact-heading">
     <div class="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
       <div>
         <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted">Private enquiries · Prints · Originals</p>

@@ -1,6 +1,8 @@
 ---
 title: Sad Bunny
 year: 2026
+width: 3456
+height: 5184
 medium: Oil on MDF
 dimensions: 77 × 57.4 cm / 30.32 × 22.6 in
 category: Original painting
@@ -16,5 +18,4 @@ displayOrder: 1
 ---
 
 This work responds to the emotional weight of misinterpretation. The rabbit becomes a symbol of quiet vulnerability, expressing the desire to be understood rather than defined by the perceptions of others. Original work, one of one. Certificate of authenticity included.
-
 

@@ -6,13 +6,12 @@ interface Props {
   medium: string;
   thumbnail: string;
   altText: string;
+  width: number;
+  height: number;
   category: string;
   collection: string;
   available: boolean;
   price?: string;
-  /** Real image dimensions, if known. Used to reserve space and avoid layout shift. */
-  width?: number;
-  height?: number;
   /** Set true for the first few cards above the fold so their images load eagerly. */
   eager?: boolean;
 }
@@ -24,14 +23,15 @@ const {
   medium,
   thumbnail,
   altText,
+  width,
+  height,
   category,
   collection,
   available,
   price,
-  width = 800,
-  height = 800,
   eager = false,
 } = Astro.props;
+const imageWidth = Math.min(100, Math.max(55, Math.sqrt(width / height) * 80));
 ---
 
 <article
@@ -42,7 +42,7 @@ const {
   data-collection={collection.toLowerCase()}
 >
   <a href={`/work/${slug}`} class="block">
-    <div class="overflow-hidden bg-[color-mix(in_srgb,var(--paper)_75%,#888_25%)]">
+    <div class="flex items-center justify-center">
       <img
         src={thumbnail}
         alt={altText}
@@ -50,7 +50,8 @@ const {
         height={height}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        class="block h-auto w-full transition-transform duration-200 group-hover:scale-[1.02]"
+        style={`width: ${imageWidth}%`}
+        class="block h-auto max-h-[75vh] object-contain"
       />
     </div>
     <div class="mt-3">

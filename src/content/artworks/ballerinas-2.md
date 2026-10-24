@@ -1,6 +1,8 @@
 ---
 title: Ballerinas 2
 year: 2021
+width: 5184
+height: 3456
 medium: Acrilic on Canvas panel
 dimensions: 42 X 30cm
 category: Original painting
@@ -8,7 +10,7 @@ collection: Summer 2024
 summary: The Preparation time of the dancers crew before the show
 image: /images/artwork/ballerinas-2.webp
 thumbnail: /images/thumbnails/ballerinas-2.webp
-altText: ballet painting, ballerina art, original acrylic on canvas, dance art, impressionist figurative painting, Degas style, ballet rehearsal, pink tutu painting, backstage ballet, hand-painted canvas, ballet lover gift, dance studio art, Margot Fonteyn quote, feminist art, contemporary figurative art
+altText: Four ballerinas rehearsing in a sunlit studio
 featured: true
 available: true
 price: '260'

@@ -1,6 +1,8 @@
 ---
 title: La Luz
 year: 2024
+width: 3456
+height: 5184
 medium: Oil on Panel
 dimensions: 42 x 30cm
 category: Original painting
@@ -16,6 +18,5 @@ displayOrder: 1
 ---
 
 A quiet study in light and shadow: a worn red book, a pencil, a candle, and a lone bulb illuminate a wooden table against the darkness.
-
 
 

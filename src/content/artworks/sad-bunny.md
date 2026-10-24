@@ -12,8 +12,9 @@ altText: Oil painting on MDF titled Sad Bunny, showing a rabbit on a white T-shi
 featured: true
 available: true
 price: £1,500
-displayOrder: 2
+displayOrder: 1
 ---
 
 This work responds to the emotional weight of misinterpretation. The rabbit becomes a symbol of quiet vulnerability, expressing the desire to be understood rather than defined by the perceptions of others. Original work, one of one. Certificate of authenticity included.
+
 

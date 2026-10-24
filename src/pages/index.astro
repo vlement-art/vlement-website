@@ -10,6 +10,7 @@ const featured = allArtworks
   .sort((a, b) => a.data.displayOrder - b.data.displayOrder)
   .slice(0, 4);
 const heroArtwork = featured[0] ?? [...allArtworks].sort((a, b) => a.data.displayOrder - b.data.displayOrder)[0];
+const heroMaxWidthVh = heroArtwork ? (85 * heroArtwork.data.width) / heroArtwork.data.height : 0;
 const selectedWorks = heroArtwork
   ? featured.filter((artwork) => artwork.slug !== heroArtwork.slug)
   : featured;
@@ -25,21 +26,24 @@ const exhibitions = [
 ---
 
 <BaseLayout title={`${site.artistName} — Original Paintings & Prints`} description={site.description}>
-  <section class="mx-auto grid max-w-6xl items-center gap-8 px-6 pb-16 pt-8 sm:gap-12 sm:pb-24 sm:pt-12 lg:min-h-[calc(100svh-5rem)] lg:grid-cols-[1.2fr_0.8fr] lg:gap-16" aria-labelledby="hero-heading">
+  <section class="mx-auto grid min-h-[100svh] max-w-6xl items-center justify-items-center gap-8 bg-paper px-6 pb-16 pt-8 sm:gap-12 sm:pb-24 sm:pt-12 lg:grid-cols-[1.2fr_0.8fr] lg:gap-16" aria-labelledby="hero-heading">
     {heroArtwork && (
       <a
         href={`/work/${heroArtwork.slug}`}
-        class="group order-first block"
+        class="group order-first flex w-full flex-col items-center justify-center"
         aria-label={`View ${heroArtwork.data.title}`}
       >
-        <div class="flex aspect-[3/4] max-h-[72svh] items-center justify-center overflow-hidden bg-surface">
+        <div
+          class="flex items-center justify-center bg-paper"
+          style={`aspect-ratio: ${heroArtwork.data.width} / ${heroArtwork.data.height}; width: min(100%, ${heroMaxWidthVh}svh); max-height: 85svh; max-width: 100%;`}
+        >
           <img
             src={heroArtwork.data.image}
-            alt={heroArtwork.data.altText}
+            alt={`${heroArtwork.data.title}, ${heroArtwork.data.medium}, ${heroArtwork.data.year}`}
             loading="eager"
             fetchpriority="high"
             decoding="async"
-            class="max-h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.015]"
+            class="h-full w-full object-contain bg-transparent"
           />
         </div>
         <p class="mt-3 flex items-baseline justify-between gap-4 text-xs text-muted">
@@ -48,7 +52,7 @@ const exhibitions = [
         </p>
       </a>
     )}
-    <div class="lg:py-12">
+    <div class="w-full lg:py-12">
       <p class="mb-5 text-xs uppercase tracking-[0.22em] text-muted">
         {site.location} · Painting · Mixed media · Printmaking
       </p>

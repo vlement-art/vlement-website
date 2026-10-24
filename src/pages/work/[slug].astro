@@ -83,7 +83,7 @@ const structuredData = {
 
       <div class="sm:sticky sm:top-24">
         <p class="mb-3 text-xs uppercase tracking-[0.22em] text-muted">Artwork · {data.collection}</p>
-        <h1 class="font-serif text-4xl italic leading-tight sm:text-6xl">{data.title}</h1>
+        <h1 class="font-original text-4xl italic leading-tight sm:text-6xl">{data.title}</h1>
         <p class="mt-2 text-muted">{data.year} · {data.medium}</p>
 
         <dl class="mt-8 grid grid-cols-2 gap-x-5 gap-y-6 border-y border-line py-7 text-sm">
@@ -124,11 +124,11 @@ const structuredData = {
     <nav class="mt-20 flex items-center justify-between border-t border-line pt-6 text-sm sm:mt-24" aria-label="Artwork navigation">
       <a href={`/work/${prev.slug}`} class="max-w-[45%] hover:text-accent-dark">
         <span class="block text-xs uppercase tracking-wide text-muted">&larr; Previous</span>
-        <span class="font-serif italic">{prev.data.title}</span>
+        <span class="font-original italic">{prev.data.title}</span>
       </a>
       <a href={`/work/${next.slug}`} class="max-w-[45%] text-right hover:text-accent-dark">
         <span class="block text-xs uppercase tracking-wide text-muted">Next &rarr;</span>
-        <span class="font-serif italic">{next.data.title}</span>
+        <span class="font-original italic">{next.data.title}</span>
       </a>
     </nav>
   </article>

@@ -15,6 +15,7 @@ export default {
       },
       fontFamily: {
         serif: ['"Iowan Old Style"', '"Baskerville"', '"Palatino Linotype"', '"Book Antiqua"', 'Georgia', 'serif'],
+        original: ['Georgia', '"Times New Roman"', 'serif'],
         sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
       },
       transitionDuration: {

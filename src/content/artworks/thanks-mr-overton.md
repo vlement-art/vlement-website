@@ -1,8 +1,6 @@
 ---
 title: Thanks! Mr Overton
 year: 2026
-width: 3456
-height: 5184
 medium: Oil on canvas
 dimensions: 42.5 X 60Cm
 category: Original painting
@@ -13,7 +11,7 @@ thumbnail: /images/thumbnails/thanks-mr-overton.webp
 altText: Figurative painting of a man in a blue suit facing a large portrait, with expressive blue brushstrokes and the inscription “THANKS!! Mr Overton” at the bottom
 featured: true
 available: true
-price: '260'
+price: £260
 displayOrder: 1
 ---
 

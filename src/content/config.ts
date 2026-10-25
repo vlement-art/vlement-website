@@ -10,6 +10,8 @@ const artworks = defineCollection({
   schema: z.object({
     title: z.string(),
     year: z.number().int(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
     medium: z.string(),
     dimensions: z.string(),
     category: z.string(),

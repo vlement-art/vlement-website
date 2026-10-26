@@ -199,6 +199,7 @@
   <div class="modal" id="modal"></div>
 </div>
 
+<script src="/admin/export-excel.js"></script>
 <script>
 /* ---------------------------------------------------------------------
    CONFIG — matches config.yml
@@ -212,6 +213,7 @@ const IMAGE_DIR = 'public/images/artwork';
 const IMAGE_PUBLIC_PREFIX = '/images/artwork';
 const THUMB_DIR = 'public/images/thumbnails';
 const THUMB_PUBLIC_PREFIX = '/images/thumbnails';
+const HOMEPAGE_SETTINGS_PATH = 'src/data/homepage.json';
 
 const CATEGORY_OPTIONS = ['Print', 'Original painting', 'Drawing', 'Mixed media'];
 const COLLECTION_OPTIONS = ['Yellow Balloon', 'Coastal Studies'];
@@ -223,6 +225,7 @@ const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 --------------------------------------------------------------------- */
 let token = sessionStorage.getItem('gh_token') || null;
 let entries = []; // { path, sha, slug, data:{...}, body:"" }
+let homepageSettings = { heroSlug: null, heroImageField: null };
 
 /* ---------------------------------------------------------------------
    AUTH — reuses the existing Sveltia OAuth worker/callback
@@ -353,14 +356,6 @@ function utf8ToBase64(str) {
 function base64ToUtf8(b64) {
   return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
 }
-function bytesToBase64(bytes) {
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -427,7 +422,25 @@ function buildFrontmatter(data, body) {
 async function loadEntries() {
   await ensureYamlLibrary();
   setListStatus('Loading artworks…');
-  const files = await ghListDir(CONTENT_DIR);
+  const [files, homepageFile] = await Promise.all([
+    ghListDir(CONTENT_DIR),
+    ghGetFile(HOMEPAGE_SETTINGS_PATH)
+  ]);
+  if (homepageFile) {
+    const settings = JSON.parse(base64ToUtf8(homepageFile.content));
+    if (settings.heroSlug != null && typeof settings.heroSlug !== 'string') {
+      throw new Error('Homepage hero settings have an invalid artwork ID.');
+    }
+    if (settings.heroImageField != null && !['image', 'thumbnail'].includes(settings.heroImageField)) {
+      throw new Error('Homepage hero settings have an invalid image selection.');
+    }
+    homepageSettings = {
+      heroSlug: settings.heroSlug || null,
+      heroImageField: settings.heroImageField || null
+    };
+  } else {
+    homepageSettings = { heroSlug: null, heroImageField: null };
+  }
   const mdFiles = files.filter(f => f.type === 'file' && /\.md$/.test(f.name));
   entries = [];
   for (const f of mdFiles) {
@@ -468,6 +481,7 @@ function renderGrid() {
 
   for (const entry of entries) {
     const d = entry.data;
+    const isHero = homepageSettings.heroSlug === entry.slug;
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
@@ -475,6 +489,8 @@ function renderGrid() {
       <div class="body">
         <div class="title">${escapeHtml(d.title || '(untitled)')}</div>
         <div class="meta">${escapeHtml(d.category || '')}${d.year ? ' · ' + d.year : ''}</div>
+        <div class="meta">${d.featured ? 'Featured on homepage' : 'Not featured'} · ${d.available === false ? 'Sold' : 'Available'}</div>
+        ${isHero ? `<div class="meta" style="color:var(--accent);font-weight:600">Homepage hero · ${homepageSettings.heroImageField === 'thumbnail' ? 'thumbnail' : 'full-size image'}</div>` : ''}
       </div>
       <div class="actions">
         <button class="btn edit-btn">Edit</button>
@@ -504,6 +520,13 @@ function openEditor(entry) {
   pendingThumbFile = null;
   const d = entry ? entry.data : {};
   const isNew = !entry;
+  const selectedCategory = d.category || '';
+  const selectedCollection = d.collection || '';
+  const categoryOptions = [...new Set([...CATEGORY_OPTIONS, ...entries.map(e => e.data.category), selectedCategory].filter(Boolean))];
+  const collectionOptions = [...new Set([...COLLECTION_OPTIONS, ...entries.map(e => e.data.collection), selectedCollection].filter(Boolean))];
+  const selectedHeroField = homepageSettings.heroSlug === entry?.slug
+    ? homepageSettings.heroImageField || 'image'
+    : '';
 
   const modal = document.getElementById('modal');
   modal.innerHTML = `
@@ -538,16 +561,35 @@ function openEditor(entry) {
 
     <div class="row2">
       <div class="field">
+        <label>Image width (pixels)</label>
+        <input type="number" id="f-width" value="${d.width ?? ''}" min="1">
+      </div>
+      <div class="field">
+        <label>Image height (pixels)</label>
+        <input type="number" id="f-height" value="${d.height ?? ''}" min="1">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
         <label>Category</label>
-        <select id="f-category">
-          ${CATEGORY_OPTIONS.map(o => `<option value="${o}" ${d.category === o ? 'selected' : ''}>${o}</option>`).join('')}
-        </select>
+        <div style="display:flex;gap:8px">
+          <select id="f-category" style="flex:1">
+            <option value="">Select a category</option>
+            ${categoryOptions.map(o => `<option value="${escapeHtml(o)}" ${selectedCategory === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
+          </select>
+          <button class="btn" type="button" id="add-category-btn">+ Add</button>
+        </div>
       </div>
       <div class="field">
         <label>Collection</label>
-        <select id="f-collection">
-          ${COLLECTION_OPTIONS.map(o => `<option value="${o}" ${d.collection === o ? 'selected' : ''}>${o}</option>`).join('')}
-        </select>
+        <div style="display:flex;gap:8px">
+          <select id="f-collection" style="flex:1">
+            <option value="">Select a collection</option>
+            ${collectionOptions.map(o => `<option value="${escapeHtml(o)}" ${selectedCollection === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
+          </select>
+          <button class="btn" type="button" id="add-collection-btn">+ Add</button>
+        </div>
       </div>
     </div>
 
@@ -570,6 +612,16 @@ function openEditor(entry) {
         <div class="preview" id="preview-thumb">${d.thumbnail ? `<img src="${d.thumbnail}">` : '<span>none</span>'}</div>
         <input type="file" id="f-thumb" accept="image/*">
       </div>
+    </div>
+
+    <div class="field">
+      <label for="f-heroImage">Hero picture</label>
+      <select id="f-heroImage">
+        <option value="" ${selectedHeroField ? 'disabled' : ''}>Not the homepage hero</option>
+        ${d.image || isNew ? `<option value="image" ${selectedHeroField === 'image' ? 'selected' : ''}>Use the full-size image</option>` : ''}
+        ${d.thumbnail || isNew ? `<option value="thumbnail" ${selectedHeroField === 'thumbnail' ? 'selected' : ''}>Use the thumbnail image</option>` : ''}
+      </select>
+      <span class="hint">Choosing an image here replaces the current homepage hero selection.</span>
     </div>
 
     <div class="field">
@@ -612,13 +664,33 @@ function openEditor(entry) {
     pendingImageFile = e.target.files[0] || null;
     if (pendingImageFile) {
       document.getElementById('preview-image').innerHTML = `<img src="${URL.createObjectURL(pendingImageFile)}">`;
+      refreshHeroImageOptions(entry, selectedHeroField);
+      const preview = new Image();
+      const objectUrl = URL.createObjectURL(pendingImageFile);
+      preview.onload = () => {
+        document.getElementById('f-width').value = preview.naturalWidth;
+        document.getElementById('f-height').value = preview.naturalHeight;
+        URL.revokeObjectURL(objectUrl);
+      };
+      preview.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        document.getElementById('modal-error').innerHTML = '<div class="status-banner error">The selected artwork image could not be read. Choose a valid image file.</div>';
+      };
+      preview.src = objectUrl;
     }
   });
   document.getElementById('f-thumb').addEventListener('change', e => {
     pendingThumbFile = e.target.files[0] || null;
     if (pendingThumbFile) {
       document.getElementById('preview-thumb').innerHTML = `<img src="${URL.createObjectURL(pendingThumbFile)}">`;
+      refreshHeroImageOptions(entry, selectedHeroField);
     }
+  });
+  document.getElementById('add-category-btn').addEventListener('click', () => {
+    createTaxonomyFromEditor('category').catch(err => showBanner(err.message, 'error'));
+  });
+  document.getElementById('add-collection-btn').addEventListener('click', () => {
+    createTaxonomyFromEditor('collection').catch(err => showBanner(err.message, 'error'));
   });
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('save-btn').addEventListener('click', saveEntry);
@@ -626,9 +698,37 @@ function openEditor(entry) {
   document.getElementById('modal-overlay').hidden = false;
 }
 
+function refreshHeroImageOptions(entry, selectedField) {
+  const select = document.getElementById('f-heroImage');
+  if (!select) return;
+  const currentSelection = select.value || selectedField || '';
+  const d = entry?.data || {};
+  const choices = [
+    { value: '', label: 'Not the homepage hero' },
+    ...((d.image || pendingImageFile) ? [{ value: 'image', label: 'Use the full-size image' }] : []),
+    ...((d.thumbnail || pendingThumbFile) ? [{ value: 'thumbnail', label: 'Use the thumbnail image' }] : [])
+  ];
+  select.innerHTML = choices.map(choice =>
+    `<option value="${choice.value}" ${choice.value === currentSelection ? 'selected' : ''}>${choice.label}</option>`
+  ).join('');
+  if (homepageSettings.heroSlug === entry?.slug && currentSelection) {
+    select.querySelector('option[value=""]').disabled = true;
+  }
+}
+
 function closeModal() {
   document.getElementById('modal-overlay').hidden = true;
   currentEntry = null;
+}
+
+async function saveHomepageSettings(heroSlug, heroImageField) {
+  const settings = { heroSlug, heroImageField };
+  await ghPutFileSafe(
+    HOMEPAGE_SETTINGS_PATH,
+    utf8ToBase64(JSON.stringify(settings, null, 2) + '\n'),
+    `Set homepage hero to ${heroSlug}`
+  );
+  homepageSettings = settings;
 }
 
 /* ---------------------------------------------------------------------
@@ -649,14 +749,27 @@ async function saveEntry() {
     const isNew = !currentEntry;
     const slug = currentEntry ? currentEntry.slug : slugify(title);
     const mdPath = `${CONTENT_DIR}/${slug}.md`;
+    const year = Number(document.getElementById('f-year').value);
+    const width = Number(document.getElementById('f-width').value);
+    const height = Number(document.getElementById('f-height').value);
+    const category = document.getElementById('f-category').value;
+    const collection = document.getElementById('f-collection').value;
+    if (!Number.isInteger(year) || year < 1900 || year > 2100) throw new Error('Enter a valid artwork year.');
+    if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+      throw new Error('Enter valid image width and height in pixels. Choosing a full-size image will fill these automatically.');
+    }
+    if (!category || !collection) throw new Error('Choose a category and collection before saving.');
 
     const data = {
+      ...(currentEntry?.data || {}),
       title,
-      year: Number(document.getElementById('f-year').value) || undefined,
+      year,
+      width,
+      height,
       medium: document.getElementById('f-medium').value.trim(),
       dimensions: document.getElementById('f-dimensions').value.trim(),
-      category: document.getElementById('f-category').value,
-      collection: document.getElementById('f-collection').value,
+      category,
+      collection,
       summary: document.getElementById('f-summary').value.trim(),
       image: currentEntry?.data.image,
       thumbnail: currentEntry?.data.thumbnail,
@@ -686,6 +799,14 @@ async function saveEntry() {
       data.thumbnail = `${THUMB_PUBLIC_PREFIX}/${slug}.${ext}`;
     }
 
+    const heroImageField = document.getElementById('f-heroImage').value;
+    if (!data.image || !data.thumbnail) {
+      throw new Error('Upload both a full-size image and a thumbnail before saving.');
+    }
+    if (!heroImageField && homepageSettings.heroSlug === slug) {
+      throw new Error('Select a full-size image or thumbnail to keep the current homepage hero.');
+    }
+
     // Clean undefined keys
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 
@@ -694,6 +815,13 @@ async function saveEntry() {
 
     const putResult = await ghPutFileSafe(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`);
     const newSha = putResult?.content?.sha;
+
+    if (heroImageField && (
+      homepageSettings.heroSlug !== slug
+      || homepageSettings.heroImageField !== heroImageField
+    )) {
+      await saveHomepageSettings(slug, heroImageField);
+    }
 
     // Update local state directly instead of re-fetching every entry from GitHub
     if (isNew) {
@@ -721,6 +849,10 @@ async function saveEntry() {
    DELETE
 --------------------------------------------------------------------- */
 async function confirmDelete(entry) {
+  if (homepageSettings.heroSlug === entry.slug) {
+    showBanner('Choose a different homepage hero image before deleting this artwork.', 'error');
+    return;
+  }
   if (!confirm(`Delete "${entry.data.title || entry.slug}"? This removes the entry file (images are left in place).`)) return;
   try {
     const fresh = await ghGetFile(entry.path);
@@ -735,122 +867,8 @@ async function confirmDelete(entry) {
 }
 
 /* ---------------------------------------------------------------------
-   SQLITE EXPORT
+   EXCEL BACKUP EXPORT (implementation in export-excel.js)
 --------------------------------------------------------------------- */
-let sqlJsLibraryPromise = null;
-function ensureSqlJsLibrary() {
-  if (typeof window.initSqlJs === 'function') {
-    return Promise.resolve(window.initSqlJs);
-  }
-  if (!sqlJsLibraryPromise) {
-    sqlJsLibraryPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://sql.js.org/dist/sql-wasm.js';
-      script.onload = () => {
-        if (typeof window.initSqlJs === 'function') {
-          resolve(window.initSqlJs);
-        } else {
-          reject(new Error('sql.js loaded but its initializer is unavailable. Check the browser console and try again.'));
-        }
-      };
-      script.onerror = () => {
-        reject(new Error(`Could not load sql.js from ${script.src}. Check your network connection and try again.`));
-      };
-      document.head.appendChild(script);
-    }).catch(err => {
-      sqlJsLibraryPromise = null;
-      throw err;
-    });
-  }
-  return sqlJsLibraryPromise;
-}
-
-async function exportArtworksSqlite() {
-  const btn = document.getElementById('export-db-btn');
-  if (!btn) return;
-
-  btn.disabled = true;
-  const originalText = btn.textContent;
-  btn.textContent = 'Building…';
-
-  try {
-    const initSqlJs = await ensureSqlJsLibrary();
-    const SQL = await initSqlJs({
-      locateFile: file => `https://sql.js.org/dist/${file}`
-    });
-
-    const db = new SQL.Database();
-
-    db.run(`
-      CREATE TABLE artworks (
-        slug TEXT PRIMARY KEY,
-        title TEXT,
-        year INTEGER,
-        medium TEXT,
-        dimensions TEXT,
-        category TEXT,
-        collection TEXT,
-        summary TEXT,
-        image TEXT,
-        thumbnail TEXT,
-        altText TEXT,
-        featured INTEGER,
-        available INTEGER,
-        price TEXT,
-        displayOrder INTEGER,
-        body TEXT
-      );
-    `);
-
-    const insert = db.prepare(`
-      INSERT OR REPLACE INTO artworks (
-        slug, title, year, medium, dimensions, category, collection, summary,
-        image, thumbnail, altText, featured, available, price, displayOrder, body
-      ) VALUES (
-        :slug, :title, :year, :medium, :dimensions, :category, :collection, :summary,
-        :image, :thumbnail, :altText, :featured, :available, :price, :displayOrder, :body
-      );
-    `);
-
-    for (const entry of entries) {
-      const d = entry.data || {};
-      insert.run({
-        ':slug': entry.slug || null,
-        ':title': d.title || null,
-        ':year': d.year != null ? Number(d.year) : null,
-        ':medium': d.medium || null,
-        ':dimensions': d.dimensions || null,
-        ':category': d.category || null,
-        ':collection': d.collection || null,
-        ':summary': d.summary || null,
-        ':image': d.image || null,
-        ':thumbnail': d.thumbnail || null,
-        ':altText': d.altText || null,
-        ':featured': !!d.featured ? 1 : 0,
-        ':available': d.available === undefined ? 1 : (d.available ? 1 : 0),
-        ':price': d.price || null,
-        ':displayOrder': d.displayOrder != null ? Number(d.displayOrder) : 0,
-        ':body': entry.body || null
-      });
-    }
-    insert.free();
-
-    const sqliteBytes = db.export();
-    const encodedContent = bytesToBase64(sqliteBytes);
-    const targetPath = 'src/data/artworks.sqlite';
-
-    await ghPutFileSafe(targetPath, encodedContent, 'Update artworks sqlite');
-    showBanner('SQLite database created and synced to src/data/artworks.sqlite.', 'info');
-  } catch (err) {
-    console.error(err);
-    showBanner('Failed to create SQLite DB: ' + err.message, 'error');
-    alert(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-}
-
 /* ---------------------------------------------------------------------
    APP BOOTSTRAP
 --------------------------------------------------------------------- */
@@ -858,12 +876,14 @@ function showApp() {
   document.getElementById('login-screen').hidden = true;
   document.getElementById('app-screen').hidden = false;
   document.getElementById('topbar-actions').innerHTML = `
-    <button class="btn" id="export-db-btn">Export SQLite DB</button>
+    <button class="btn" id="export-xlsx-btn">Export Excel (.xlsx)</button>
     <button class="btn" id="logout-btn">Sign out</button>
   `;
   document.getElementById('logout-btn').addEventListener('click', logout);
-  document.getElementById('export-db-btn').addEventListener('click', exportArtworksSqlite);
-  loadEntries().catch(err => showBanner(err.message, 'error'));
+  document.getElementById('export-xlsx-btn').addEventListener('click', window.exportArtworksExcel);
+  loadEntries().then(() => {
+    if (typeof initCollections === 'function') initCollections();
+  }).catch(err => showBanner(err.message, 'error'));
 }
 
 document.getElementById('login-btn').addEventListener('click', login);

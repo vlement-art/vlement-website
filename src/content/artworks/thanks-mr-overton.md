@@ -1,14 +1,14 @@
 ---
 title: Thanks! Mr Overton
 year: 2026
-width: 3456
-height: 5184
+width: 1920
+height: 2729
 medium: Oil on canvas
 dimensions: 42.5 X 60Cm
 category: Original painting
 collection: Luz
 summary: A quiet reflection on gratitude, presence and the lasting impact one person can have on another
-image: /images/artwork/thanks-mr-overton.webp
+image: /images/artwork/thanks-mr-overton.jfif
 thumbnail: /images/thumbnails/thanks-mr-overton.webp
 altText: Figurative painting of a man in a blue suit facing a large portrait, with expressive blue brushstrokes and the inscription “THANKS!! Mr Overton” at the bottom
 featured: true

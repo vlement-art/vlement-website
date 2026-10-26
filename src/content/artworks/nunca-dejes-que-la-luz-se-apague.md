@@ -1,6 +1,8 @@
 ---
 title: No Dejes Que la Luz Se Apague
 year: 2026
+width: 3456
+height: 5184
 medium: Print-Hahnemühle Photo Rag Giclée
 dimensions: 42 × 30 cm
 category: Print
@@ -16,7 +18,6 @@ displayOrder: 1
 ---
 
 A poignant piece that captures the essence of light and hope. Dated August 2026, this is an edition of 50. Includes a certificate of authenticity.
-
 
 
 

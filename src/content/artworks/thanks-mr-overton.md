@@ -1,6 +1,8 @@
 ---
 title: Thanks! Mr Overton
 year: 2026
+width: 3456
+height: 5184
 medium: Oil on canvas
 dimensions: 42.5 X 60Cm
 category: Original painting

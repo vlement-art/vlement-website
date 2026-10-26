@@ -3,13 +3,19 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import ArtworkCard from '../components/ArtworkCard.astro';
 import { getCollection } from 'astro:content';
 import { site } from '../data/site';
+import homepageSettings from '../data/homepage.json';
 
 const allArtworks = await getCollection('artworks');
 const featured = allArtworks
   .filter((a) => a.data.featured)
   .sort((a, b) => a.data.displayOrder - b.data.displayOrder)
-  .slice(0, 4);
-const heroArtwork = featured[0] ?? [...allArtworks].sort((a, b) => a.data.displayOrder - b.data.displayOrder)[0];
+const heroArtwork = allArtworks.find((artwork) => artwork.slug === homepageSettings.heroSlug)
+  ?? featured[0]
+  ?? [...allArtworks].sort((a, b) => a.data.displayOrder - b.data.displayOrder)[0];
+const heroImage = heroArtwork && homepageSettings.heroSlug === heroArtwork.slug
+  && homepageSettings.heroImageField === 'thumbnail'
+  ? heroArtwork.data.thumbnail
+  : heroArtwork?.data.image;
 const heroMaxWidthVh = heroArtwork ? (85 * heroArtwork.data.width) / heroArtwork.data.height : 0;
 const selectedWorks = heroArtwork
   ? featured.filter((artwork) => artwork.slug !== heroArtwork.slug)
@@ -38,18 +44,25 @@ const exhibitions = [
           style={`aspect-ratio: ${heroArtwork.data.width} / ${heroArtwork.data.height}; width: min(100%, ${heroMaxWidthVh}svh); max-height: 85svh; max-width: 100%;`}
         >
           <img
-            src={heroArtwork.data.image}
-            alt={`${heroArtwork.data.title}, ${heroArtwork.data.medium}, ${heroArtwork.data.year}`}
+            src={heroImage}
+            alt={heroArtwork.data.altText}
             loading="eager"
             fetchpriority="high"
             decoding="async"
             class="h-full w-full object-contain bg-transparent"
           />
         </div>
-        <p class="mt-3 flex items-baseline justify-between gap-4 text-xs text-muted">
+        <div class="mt-3 flex w-full flex-col gap-1 text-xs text-muted sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-4">
           <span class="font-original text-base italic text-ink">{heroArtwork.data.title}</span>
-          <span>{heroArtwork.data.year} · {heroArtwork.data.medium}</span>
-        </p>
+          {(heroArtwork.data.year || heroArtwork.data.medium) && (
+            <span>
+              {heroArtwork.data.year}
+              {heroArtwork.data.year && heroArtwork.data.medium && ' · '}
+              {heroArtwork.data.medium}
+            </span>
+          )}
+          {heroArtwork.data.dimensions && <span>{heroArtwork.data.dimensions}</span>}
+        </div>
       </a>
     )}
     <div class="w-full lg:py-12">
@@ -88,6 +101,7 @@ const exhibitions = [
           title={artwork.data.title}
           year={artwork.data.year}
           medium={artwork.data.medium}
+          dimensions={artwork.data.dimensions}
           thumbnail={artwork.data.thumbnail}
           altText={artwork.data.altText}
           width={artwork.data.width}

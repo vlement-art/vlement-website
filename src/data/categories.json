@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Print",
+    "slug": "print"
+  },
+  {
+    "name": "Original painting",
+    "slug": "original-painting"
+  },
+  {
+    "name": "Drawing",
+    "slug": "drawing"
+  },
+  {
+    "name": "Mixed media",
+    "slug": "mixed-media"
+  }
+]

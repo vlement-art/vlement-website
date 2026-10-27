@@ -13,8 +13,11 @@ featured: true
 available: true
 price: £260
 displayOrder: 1
+width: 5184
+height: 3456
 ---
 
 An intimate, behind-the-scenes glimpse into the world of ballet, painted in a warm, impressionistic style. Four ballerinas in soft pink and fuchsia tutus stretch, rest, and adjust their pointe shoes in a sunlit rehearsal studio, while a male dancer waits in the background by a tall multi-paned window. Rich, earthy browns and ochres in the floor and heavy stage curtains contrast beautifully with the candy-bright pinks of the tutus, and natural light spills across the floorboards. Finished with expressive, textured brushwork, and inscribed in the corner with Margot Fonteyn's words: "Ballet is a dance executed by the human soul."
+
 
 

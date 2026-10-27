@@ -1,9 +1,7 @@
 ---
 title: Pildora Para Dejar de Soñar
 year: 2024
-width: 5184
-height: 3456
-medium: Canvas Pannel
+medium: Canvas Panel
 dimensions: 42x30cm
 category: Original painting
 collection: Summer 2024
@@ -18,6 +16,7 @@ displayOrder: 1
 ---
 
 “Ceci n’est pas une pilule pour arrêter de rêver”—French for “This is not a pill to stop dreaming.” The work playfully echoes René Magritte’s famous challenge and Spanish singer Joaquin Savina and his song "Pastillas para no soñar", to the relationship between an image and the thing it represents. Here, the ordinary form of a pill is transformed into a poetic symbol, suggesting imagination, hope, and the refusal to abandon dreams.
+
 
 
 

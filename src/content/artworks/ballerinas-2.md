@@ -11,7 +11,7 @@ thumbnail: /images/thumbnails/ballerinas-2.webp
 altText: Four ballerinas rehearsing in a sunlit studio
 featured: true
 available: true
-price: £260
+price: '260'
 displayOrder: 1
 width: 5184
 height: 3456

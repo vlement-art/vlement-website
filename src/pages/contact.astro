@@ -55,6 +55,7 @@ const formEndpoint = import.meta.env.PUBLIC_CONTACT_FORM_ENDPOINT;
           novalidate
         >
           <input type="hidden" name="_next" value={`${site.url}/contact?submitted=1`} />
+          <input id="subject" name="subject" type="hidden" />
           <div>
             <label for="name" class="block text-xs uppercase tracking-wide text-muted">Name</label>
             <input id="name" name="name" type="text" required class="mt-1 min-h-[2.8rem] w-full border border-line bg-surface px-3 py-2 text-ink" />
@@ -89,9 +90,23 @@ const formEndpoint = import.meta.env.PUBLIC_CONTACT_FORM_ENDPOINT;
         <script>
           (function () {
             var success = document.getElementById('contactFormSuccess');
-            if (!success) return;
             var params = new URLSearchParams(window.location.search);
-            if (params.get('submitted') === '1') {
+            var piece = params.get('piece') || params.get('title');
+            var message = document.getElementById('message');
+            var subject = document.getElementById('subject');
+
+            if (message && piece) {
+              var draft = 'I would like to enquire about “' + piece + '”.\n\n';
+              if (!message.value) {
+                message.value = draft;
+              }
+            }
+
+            if (subject && piece) {
+              subject.value = 'Enquiry about “' + piece + '”';
+            }
+
+            if (success && params.get('submitted') === '1') {
               success.classList.remove('hidden');
               var clean = window.location.pathname + window.location.hash;
               window.history.replaceState({}, '', clean);

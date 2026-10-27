@@ -1,6 +1,8 @@
 ---
 title: Pildora Para Dejar de Soñar
 year: 2024
+width: 5184
+height: 3456
 medium: Canvas Panel
 dimensions: 42x30cm
 category: Original painting

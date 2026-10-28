@@ -3,7 +3,9 @@
 A static artwork portfolio built with [Astro](https://astro.build). Public
 pages are pre-rendered to plain HTML at build time. The `/admin` interface
 uses GitHub as its publishing store for artwork Markdown and small JSON
-settings files; it does not use a runtime database.
+settings files. A separate Cloudflare Worker uses D1 and private R2 storage
+for digital artwork certificates; it does not change the public site's static
+hosting or the GitHub-backed artwork publishing flow.
 
 ## Why Astro
 
@@ -45,6 +47,8 @@ artwork-site/
 │   ├── pages/                 index, work/, about, contact, privacy, 404
 │   └── styles/global.css
 ├── .github/workflows/deploy.yml   GitHub Pages CI/CD
+├── shared/certificate-config.json shared certificate wording and type rules
+├── workers/certificates/          Cloudflare Worker, D1 schema, and tests
 ├── astro.config.mjs
 ├── .env.example
 ├── SECURITY.md
@@ -53,7 +57,7 @@ artwork-site/
 
 ## Run it locally
 
-Requires Node.js 18.17+ (Node 20 recommended — matches the CI workflow).
+Requires Node.js 22 or later (matches the site build and Worker tooling).
 
 ```bash
 npm install
@@ -105,7 +109,12 @@ Every artwork is one Markdown file in `src/content/artworks/`. To add one:
    | `altText` | string | describes the artwork for screen readers — be specific |
    | `featured` | boolean | shows in the home page's selected works gallery (optional, default `false`) |
    | `available` | boolean | shows "Available"/"Sold" badge (optional, default `true`) |
-   | `price` | string | optional — omit the field entirely to hide the price |
+   | `price` | string or number | optional — omit the field entirely to hide the price |
+   | `editionType` | `original`, `limited`, or `open` | optional certificate metadata |
+   | `editionSize` | number | optional; required when the artwork is a limited edition |
+   | `support` | string | optional support detail, such as canvas panel |
+   | `printDate` | string | optional print date |
+   | `signed` | boolean | optional signature metadata |
    | `displayOrder` | number | lower numbers appear first (optional, default `0`) |
 
 3. Write the full description as the Markdown body, below the `---`.
@@ -127,7 +136,10 @@ Use **Export Excel (.xlsx)** in the admin panel to download a workbook of all
 artwork records and metadata. Thumbnail previews are embedded when the
 browser can read them; full-size artwork files are not embedded, so back up
 the image files from the repository paths listed in the workbook as well.
-The former generated SQLite export is no longer used or stored.
+The former generated SQLite export is no longer used or stored. The separate
+certificate service has its own private D1/R2 data; its admin ZIP backup and
+local/deployment instructions are documented in
+[`workers/certificates/README.md`](workers/certificates/README.md).
 
 ## Images
 

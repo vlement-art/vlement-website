@@ -24,16 +24,15 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Install dependencies
         run: npm install
 
       - name: Build
         run: npm run build
         env:
-          # Set repository/organization secrets or variables here if you add a
-          # PUBLIC_ env var later (e.g. PUBLIC_CONTACT_FORM_ENDPOINT). Never
-          # put a real secret in a PUBLIC_ variable — see .env.example.
+          PUBLIC_CERTIFICATES_API_URL: ${{ vars.PUBLIC_CERTIFICATES_API_URL }}
+          # This is a public Worker origin; never put credentials in PUBLIC_ variables.
           PUBLIC_CONTACT_FORM_ENDPOINT: ${{ vars.PUBLIC_CONTACT_FORM_ENDPOINT }}
 
       - name: Setup Pages

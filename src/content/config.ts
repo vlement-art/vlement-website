@@ -24,7 +24,12 @@ const artworks = defineCollection({
     altText: z.string(),
     featured: z.boolean().default(false),
     available: z.boolean().default(true),
-    price: z.string().optional(),
+    price: z.union([z.string(), z.number()]).optional(),
+    editionType: z.enum(['original', 'limited', 'open']).optional(),
+    editionSize: z.number().int().positive().optional(),
+    support: z.string().optional(),
+    printDate: z.string().optional(),
+    signed: z.boolean().optional(),
     displayOrder: z.number().int().default(0),
   }),
 });

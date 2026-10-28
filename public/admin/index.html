@@ -645,6 +645,36 @@ function openEditor(entry) {
       <input type="text" id="f-price" value="${escapeHtml(d.price || '')}" placeholder="e.g. £110">
     </div>
 
+    <div class="row2">
+      <div class="field">
+        <label for="f-editionType">Certificate artwork type</label>
+        <select id="f-editionType">
+          <option value="">Not specified</option>
+          <option value="original" ${d.editionType === 'original' ? 'selected' : ''}>Original</option>
+          <option value="limited" ${d.editionType === 'limited' ? 'selected' : ''}>Limited edition</option>
+          <option value="open" ${d.editionType === 'open' ? 'selected' : ''}>Open edition</option>
+        </select>
+      </div>
+      <div class="field" id="edition-size-field" ${d.editionType === 'limited' ? '' : 'hidden'}>
+        <label for="f-editionSize">Edition size</label>
+        <input type="number" id="f-editionSize" value="${d.editionSize ?? ''}" min="1" step="1">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="f-support">Support</label>
+        <input type="text" id="f-support" value="${escapeHtml(d.support || '')}" placeholder="e.g. canvas panel">
+      </div>
+      <div class="field">
+        <label for="f-printDate">Print date</label>
+        <input type="text" id="f-printDate" value="${escapeHtml(d.printDate || '')}" placeholder="e.g. 2025-03">
+      </div>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="f-signed" ${d.signed ? 'checked' : ''}>
+      <label for="f-signed">Artwork is signed</label>
+    </div>
+
     <div class="field">
       <label>Full description</label>
       <textarea id="f-body" rows="6">${escapeHtml(entry ? entry.body : '')}</textarea>
@@ -691,6 +721,11 @@ function openEditor(entry) {
   });
   document.getElementById('add-collection-btn').addEventListener('click', () => {
     createTaxonomyFromEditor('collection').catch(err => showBanner(err.message, 'error'));
+  });
+  document.getElementById('f-editionType').addEventListener('change', event => {
+    const limited = event.target.value === 'limited';
+    document.getElementById('edition-size-field').hidden = !limited;
+    if (!limited) document.getElementById('f-editionSize').value = '';
   });
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('save-btn').addEventListener('click', saveEntry);
@@ -777,8 +812,19 @@ async function saveEntry() {
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
+      editionType: document.getElementById('f-editionType').value || undefined,
+      editionSize: document.getElementById('f-editionType').value === 'limited'
+        ? Number(document.getElementById('f-editionSize').value)
+        : undefined,
+      support: document.getElementById('f-support').value.trim() || undefined,
+      printDate: document.getElementById('f-printDate').value.trim() || undefined,
+      signed: document.getElementById('f-signed').checked,
       displayOrder: Number(document.getElementById('f-displayOrder').value) || 0
     };
+    if (data.editionType === 'limited'
+      && (!Number.isInteger(data.editionSize) || data.editionSize < 1)) {
+      throw new Error('Enter a valid limited-edition size.');
+    }
     const body = document.getElementById('f-body').value;
 
     // Upload full image if a new one was chosen
@@ -876,6 +922,7 @@ function showApp() {
   document.getElementById('login-screen').hidden = true;
   document.getElementById('app-screen').hidden = false;
   document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn" id="certificates-btn">Certificates</button>
     <button class="btn" id="export-xlsx-btn">Export Excel (.xlsx)</button>
     <button class="btn" id="logout-btn">Sign out</button>
   `;
@@ -895,10 +942,17 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target.id === 'modal-overlay') closeModal();
 });
 
+window.VlementAdmin = {
+  getEntries: () => entries,
+  getToken: () => token
+};
+
 if (token) {
   showApp();
 }
 </script>
 <script src="collections.js"></script>
+<script src="certificates-config.js"></script>
+<script src="certificates.js"></script>
 </body>
 </html>

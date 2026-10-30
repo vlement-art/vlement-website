@@ -14,7 +14,7 @@
     "astro": "astro",
     "prepare:certificates": "node scripts/prepare-certificates.mjs",
     "test:worker": "vitest run --config workers/certificates/vitest.config.ts",
-    "typecheck:worker": "wrangler types workers/certificates/worker-configuration.d.ts --config workers/certificates/wrangler.jsonc && tsc --noEmit --project workers/certificates/tsconfig.json",
+    "typecheck:worker": "wrangler types workers/certificates/worker-configuration.d.ts --env staging --config workers/certificates/wrangler.jsonc && tsc --noEmit --project workers/certificates/tsconfig.json",
     "test": "npm run test:worker",
     "worker:dev": "wrangler dev --config workers/certificates/wrangler.jsonc --var ALLOWED_ORIGIN:http://localhost:4321",
     "worker:migrate:local": "wrangler d1 migrations apply vlement-certificates-local --local --config workers/certificates/wrangler.jsonc"

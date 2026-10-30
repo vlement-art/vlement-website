@@ -1,5 +1,7 @@
 import certificateConfig from '../../../shared/certificate-config.json';
 import type { CertificateType, Env, IssueRequest } from './types';
+import { D1BackupWorkflow } from './backup-workflow';
+export { D1BackupWorkflow };
 
 const certificateTypes = certificateConfig.certificateTypes as Record<
   CertificateType,

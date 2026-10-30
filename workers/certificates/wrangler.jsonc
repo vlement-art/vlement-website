@@ -1,35 +1,89 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "vlement-certificates",
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "artwork-certificates",
   "main": "src/index.ts",
-  "compatibility_date": "2026-10-28",
-  "workers_dev": true,
-  "vars": {
-    "ALLOWED_ORIGIN": "https://vlement.com",
-    "ARTWORK_REPOSITORY": "vlement-art/vlement-website"
-  },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "vlement-certificates-local",
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "CERTIFICATE_FILES",
-      "bucket_name": "vlement-certificates-local"
-    }
-  ],
-  "ratelimits": [
-    {
-      "name": "VERIFY_LIMITER",
-      "namespace_id": "730001",
-      "simple": {
-        "limit": 30,
-        "period": 60
+  "compatibility_date": "2026-10-29",
+  "workers_dev": false,
+  "env": {
+    "staging": {
+      "name": "artwork-certificates-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "vlement-certificates-staging",
+          "database_id": "d8394eb9-3be5-4c03-ae91-8bc6959bbfaa",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "CERTIFICATE_FILES",
+          "bucket_name": "vlement-certificates-staging-assets"
+        },
+        {
+          "binding": "BUCKET",
+          "bucket_name": "vlement-certificates-staging-assets"
+        }
+      ],
+      "ratelimits": [
+        {
+          "name": "VERIFY_LIMITER",
+          "namespace_id": "730002",
+          "simple": {
+            "limit": 30,
+            "period": 60
+          }
+        }
+      ],
+      "vars": {
+        "ALLOWED_ORIGIN": "https://vlement.com",
+        "ARTWORK_REPOSITORY": "vlement-art/vlement-website"
       }
+    },
+    "production": {
+      "name": "artwork-certificates-prod",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "vlement-certificates-prod",
+          "database_id": "ab69d88a-e350-4769-8e94-f925199260ab",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "CERTIFICATE_FILES",
+          "bucket_name": "vlement-certificates-prod-assets"
+        },
+        {
+          "binding": "BUCKET",
+          "bucket_name": "vlement-certificates-prod-assets"
+        }
+      ],
+      "ratelimits": [
+        {
+          "name": "VERIFY_LIMITER",
+          "namespace_id": "730003",
+          "simple": {
+            "limit": 30,
+            "period": 60
+          }
+        }
+      ],
+      "vars": {
+        "ACCOUNT_ID": "56ca94384d6510e6bb5fae0599a84414",
+        "DATABASE_ID": "ab69d88a-e350-4769-8e94-f925199260ab",
+        "ALLOWED_ORIGIN": "https://vlement.com",
+        "ARTWORK_REPOSITORY": "vlement-art/vlement-website"
+      },
+      "workflows": [
+        {
+          "name": "d1-backup-workflow",
+          "binding": "BACKUP_WORKFLOW",
+          "class_name": "D1BackupWorkflow",
+          "schedules": ["0 0 * * *"]
+        }
+      ]
     }
-  ]
+  }
 }

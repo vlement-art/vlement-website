@@ -3,7 +3,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import ArtworkCard from '../components/ArtworkCard.astro';
 import { getCollection } from 'astro:content';
 import { site } from '../data/site';
+import ExhibitionDateUpdater from '../components/ExhibitionDateUpdater.astro';
 import homepageSettings from '../data/homepage.json';
+import exhibitionsData from '../data/exhibitions.json';
+import { formatExhibitionDates, getExhibitionGroups } from '../data/exhibitions';
 
 const allArtworks = await getCollection('artworks');
 const featured = allArtworks
@@ -21,14 +24,7 @@ const selectedWorks = heroArtwork
   ? featured.filter((artwork) => artwork.slug !== heroArtwork.slug)
   : featured;
 
-const exhibitions = [
-  {
-    title: 'The Artists Among Us',
-    venue: "Sotheby's, London",
-    dates: '17–28 August 2026',
-    url: 'https://www.sothebys.com/en/digital-catalogues/the-artists-among-us-1?locale=en',
-  },
-];
+const exhibitions = getExhibitionGroups(exhibitionsData);
 ---
 
 <BaseLayout title={`${site.artistName} — Original Paintings & Prints`} description={site.description}>
@@ -140,20 +136,78 @@ const exhibitions = [
         <h2 id="exhibitions-heading" class="font-serif text-3xl italic sm:text-4xl">Exhibitions</h2>
       </div>
     </div>
-    <ul class="border-y border-line">
-      {exhibitions.map((ex) => (
-        <li class="grid gap-4 py-6 sm:grid-cols-[10rem_1fr_auto] sm:items-center sm:gap-8 sm:py-8">
-          <p class="text-xs uppercase tracking-wider text-muted">{ex.dates}</p>
-          <div>
-            <h3 class="font-serif text-2xl italic sm:text-3xl">{ex.title}</h3>
-            <p class="mt-1 text-sm text-muted">{ex.venue}</p>
-          </div>
-          <a href={ex.url} target="_blank" rel="noopener noreferrer" class="text-sm hover:text-accent-dark">
-            Exhibition details <span aria-hidden="true">↗</span>
-          </a>
-        </li>
-      ))}
-    </ul>
+    <div class="space-y-12">
+      {exhibitions.current.length > 0 && (
+        <div data-exhibition-section="current" hidden={exhibitions.current.length === 0}>
+          <h3 class="mb-3 text-xs uppercase tracking-[0.18em] text-muted">On now</h3>
+          <ul class="border-y border-line" data-exhibition-list="current">
+            {exhibitions.current.map((ex) => (
+              <li class="grid gap-4 py-6 sm:grid-cols-[10rem_1fr_auto] sm:items-center sm:gap-8 sm:py-8"
+                data-exhibition-item data-start-date={ex.startDate} data-end-date={ex.endDate}>
+                <p class="text-xs uppercase tracking-wider text-muted">{formatExhibitionDates(ex)}</p>
+                <div>
+                  <h4 class="font-serif text-2xl italic sm:text-3xl">{ex.title}</h4>
+                  <p class="mt-1 text-sm text-muted">{ex.venue}</p>
+                </div>
+                {ex.url && (
+                  <a href={ex.url} target="_blank" rel="noopener noreferrer" class="text-sm hover:text-accent-dark">
+                    Exhibition details <span aria-hidden="true">↗</span>
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {exhibitions.upcoming.length > 0 && (
+        <div data-exhibition-section="upcoming" hidden={exhibitions.upcoming.length === 0}>
+          <h3 class="mb-3 text-xs uppercase tracking-[0.18em] text-muted">Coming up</h3>
+          <ul class="border-y border-line" data-exhibition-list="upcoming">
+            {exhibitions.upcoming.map((ex) => (
+              <li class="grid gap-4 py-6 sm:grid-cols-[10rem_1fr_auto] sm:items-center sm:gap-8 sm:py-8"
+                data-exhibition-item data-start-date={ex.startDate} data-end-date={ex.endDate}>
+                <p class="text-xs uppercase tracking-wider text-muted">{formatExhibitionDates(ex)}</p>
+                <div>
+                  <h4 class="font-serif text-2xl italic sm:text-3xl">{ex.title}</h4>
+                  <p class="mt-1 text-sm text-muted">{ex.venue}</p>
+                </div>
+                {ex.url && (
+                  <a href={ex.url} target="_blank" rel="noopener noreferrer" class="text-sm hover:text-accent-dark">
+                    Exhibition details <span aria-hidden="true">↗</span>
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {exhibitions.past.length > 0 && (
+        <div data-exhibition-section="past" hidden={exhibitions.past.length === 0}>
+          <h3 class="mb-3 text-xs uppercase tracking-[0.18em] text-muted">Past exhibitions</h3>
+          <ul class="border-y border-line" data-exhibition-list="past">
+            {exhibitions.past.map((ex) => (
+              <li class="grid gap-4 py-6 sm:grid-cols-[10rem_1fr_auto] sm:items-center sm:gap-8 sm:py-8"
+                data-exhibition-item data-start-date={ex.startDate} data-end-date={ex.endDate}>
+                <p class="text-xs uppercase tracking-wider text-muted">{formatExhibitionDates(ex)}</p>
+                <div>
+                  <h4 class="font-serif text-2xl italic sm:text-3xl">{ex.title}</h4>
+                  <p class="mt-1 text-sm text-muted">{ex.venue}</p>
+                </div>
+                {ex.url && (
+                  <a href={ex.url} target="_blank" rel="noopener noreferrer" class="text-sm hover:text-accent-dark">
+                    Exhibition details <span aria-hidden="true">↗</span>
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p class="border-y border-line py-6 text-sm text-muted"
+        data-exhibitions-empty hidden={exhibitions.current.length + exhibitions.upcoming.length + exhibitions.past.length > 0}>
+        Exhibition details will be announced here.
+      </p>
+    </div>
   </section>
 
   <section class="mx-auto max-w-6xl border-t border-line px-6 py-20 sm:py-24" aria-labelledby="contact-heading">
@@ -173,3 +227,5 @@ const exhibitions = [
     </div>
   </section>
 </BaseLayout>
+
+<ExhibitionDateUpdater />

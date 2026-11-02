@@ -170,6 +170,21 @@ function validateIssueRequest(input: unknown): IssueRequest {
       ...(typeof artwork.altText === 'string' ? { altText: artwork.altText.slice(0, 1000) } : {}),
     },
   };
+  if (candidate.nfcTagUid != null) {
+    if (typeof candidate.nfcTagUid !== 'string') throw new Error('Enter a valid NFC tag UID.');
+    const nfcTagUid = candidate.nfcTagUid.trim();
+    if (nfcTagUid) {
+      if (!/^[A-Za-z0-9._:-]+$/.test(nfcTagUid)) {
+        throw new Error('Enter an NFC tag UID using letters, numbers, dots, colons, dashes or underscores.');
+      }
+      normalized.nfcTagUid = requiredText(nfcTagUid, 'NFC tag UID', 120);
+      normalized.nfcTagPlacement = requiredText(candidate.nfcTagPlacement, 'NFC tag placement', 200);
+    }
+  }
+  if (!normalized.nfcTagUid && candidate.nfcTagPlacement != null
+    && (typeof candidate.nfcTagPlacement !== 'string' || candidate.nfcTagPlacement.trim())) {
+    throw new Error('Enter an NFC tag UID before specifying its placement.');
+  }
 
   const expectedType = normalized.artwork.editionType
     ? {
@@ -242,11 +257,12 @@ async function createPendingVersion(
   request: IssueRequest,
   image: File,
   reissue?: { certificateId: string; reason: string },
+  replacement?: { certificateId: string; versionId: string; reason?: string },
 ): Promise<Record<string, unknown>> {
-  const id = reissue?.certificateId || crypto.randomUUID();
+  const id = reissue?.certificateId || replacement?.certificateId || crypto.randomUUID();
   const versionId = crypto.randomUUID();
-  const token = reissue ? null : randomToken();
-  const versionNumber = reissue
+  const token = reissue || replacement ? null : randomToken();
+  const versionNumber = reissue || replacement
     ? Number((await env.DB.prepare(
       'SELECT COALESCE(MAX(version_number), 0) + 1 AS next_version FROM certificate_versions WHERE certificate_id = ?',
     ).bind(id).first<{ next_version: number }>())?.next_version || 0)
@@ -270,7 +286,22 @@ async function createPendingVersion(
       : request.certificateType === 'open_edition'
         ? { editionStatement: 'Open edition, no limit on quantity' }
         : {}),
+    ...(request.nfcTagUid
+      ? { nfcTagUid: request.nfcTagUid, nfcTagPlacement: request.nfcTagPlacement }
+      : {}),
   };
+
+  if (request.nfcTagUid) {
+    const existingTag = await env.DB.prepare(
+      'SELECT certificate_id, status, placement FROM nfc_tags WHERE tag_reference = ?',
+    ).bind(request.nfcTagUid).first<{ certificate_id: string; status: string; placement: string }>();
+    if (existingTag && (reissue || replacement)
+      && existingTag.certificate_id === id && existingTag.status === 'active') {
+      snapshot.nfcTagPlacement = existingTag.placement;
+    } else if (existingTag) {
+      throw new Error("NFC UID is already registered. Use a new UID or the certificate's existing active tag.");
+    }
+  }
 
   await env.CERTIFICATE_FILES.put(originalImagePath, image.stream(), {
     httpMetadata: { contentType: image.type },
@@ -317,6 +348,83 @@ async function createPendingVersion(
         ).bind(crypto.randomUUID(), id, now, JSON.stringify({ versionNumber, reason: reissue.reason, status: 'pending' })),
       ]);
       if (result.some(item => !item.success)) throw new Error('Could not create the pending reissue.');
+    } else if (replacement) {
+      const current = await env.DB.prepare(
+        `SELECT c.status AS certificate_status, c.certificate_type, c.artwork_slug,
+                c.edition_number, c.edition_size, v.reissue_reason, v.previous_version_id
+           FROM certificates c
+           JOIN certificate_versions v ON v.certificate_id = c.id
+          WHERE c.id = ? AND v.id = ? AND v.status = 'pending'
+            AND c.status IN ('pending', 'valid')`,
+      ).bind(id, replacement.versionId).first<{
+        certificate_status: 'pending' | 'valid';
+        certificate_type: CertificateType;
+        artwork_slug: string;
+        edition_number: number | null;
+        edition_size: number | null;
+        reissue_reason: string | null;
+        previous_version_id: string | null;
+      }>();
+      if (!current) throw new Error('Pending certificate version not found.');
+      if (current.certificate_type !== request.certificateType
+        || current.artwork_slug !== request.artwork.slug
+        || current.edition_number !== (request.editionNumber ?? null)
+        || current.edition_size !== (request.editionSize ?? null)) {
+        throw new Error('Pending certificate edits must retain its type, artwork and edition.');
+      }
+
+      const reissueReason = current.certificate_status === 'valid'
+        ? replacement.reason || current.reissue_reason || ''
+        : null;
+      const updated = await env.DB.batch([
+        env.DB.prepare(
+          `UPDATE certificate_versions SET status = 'voided'
+            WHERE id = ? AND certificate_id = ? AND status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM certificates
+                 WHERE id = ? AND status IN ('pending', 'valid')
+              )`,
+        ).bind(replacement.versionId, id, id),
+        env.DB.prepare(
+          `INSERT INTO certificate_versions
+            (id, certificate_id, version_number, issued_at, snapshot_json, original_image_path,
+             reissue_reason, previous_version_id, status, created_at)
+           SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?
+            WHERE EXISTS (
+              SELECT 1 FROM certificate_versions
+               WHERE id = ? AND certificate_id = ? AND status = 'voided'
+            )
+              AND EXISTS (
+                SELECT 1 FROM certificates
+                 WHERE id = ? AND status IN ('pending', 'valid')
+              )`,
+        ).bind(
+          versionId, id, versionNumber, now, JSON.stringify(snapshot), originalImagePath,
+          reissueReason, current.previous_version_id, now, replacement.versionId, id, id,
+        ),
+        env.DB.prepare(
+          `INSERT INTO certificate_events (id, certificate_id, event_type, occurred_at, details_json)
+           SELECT ?, ?, ?, ?, ?
+            WHERE EXISTS (
+              SELECT 1 FROM certificate_versions WHERE id = ? AND status = 'pending'
+            )`,
+        ).bind(
+          crypto.randomUUID(), id,
+          current.certificate_status === 'valid' ? 'reissue_pending' : 'issue_pending',
+          now,
+          JSON.stringify({
+            versionNumber,
+            reason: reissueReason,
+            status: 'pending',
+            replacedPendingVersion: replacement.versionId,
+          }),
+          versionId,
+        ),
+      ]);
+      if (updated.some(result => !result.success)
+        || !updated[0].meta.changes || !updated[1].meta.changes || !updated[2].meta.changes) {
+        throw new Error('Could not replace the pending certificate preview.');
+      }
     } else {
       const counterInit = env.DB.prepare(
         'INSERT OR IGNORE INTO counters (certificate_type, year, value) VALUES (?, ?, 0)',
@@ -360,7 +468,7 @@ async function createPendingVersion(
   const record = await env.DB.prepare(
     `SELECT c.id, c.certificate_type, c.certificate_number, c.verification_token, c.artwork_slug,
             c.edition_number, c.edition_size, c.status, v.id AS version_id, v.version_number, v.snapshot_json,
-            v.original_image_path, v.status AS version_status
+            v.original_image_path, v.status AS version_status, v.reissue_reason
        FROM certificates c JOIN certificate_versions v ON v.id = ?
       WHERE c.id = ?`,
   ).bind(versionId, id).first<Record<string, unknown>>();
@@ -602,7 +710,14 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     const { results } = await env.DB.prepare(
       `SELECT c.id, c.certificate_type, c.certificate_number, c.verification_token,
               c.artwork_slug, c.edition_number, c.edition_size, c.status, c.created_at,
-              v.id AS version_id, v.version_number, v.status AS version_status, v.snapshot_json
+              v.id AS version_id, v.version_number, v.status AS version_status, v.snapshot_json,
+              v.reissue_reason,
+              (SELECT tag_reference FROM nfc_tags
+                WHERE certificate_id = c.id AND status = 'active'
+                ORDER BY registered_at DESC LIMIT 1) AS nfc_tag_uid,
+              (SELECT placement FROM nfc_tags
+                WHERE certificate_id = c.id AND status = 'active'
+                ORDER BY registered_at DESC LIMIT 1) AS nfc_tag_placement
          FROM certificates c
          JOIN certificate_versions v ON v.certificate_id = c.id
         WHERE v.version_number = (
@@ -657,6 +772,40 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     }, 201);
   }
 
+  const replacePendingMatch =
+    /^\/api\/admin\/certificates\/([0-9a-f-]+)\/versions\/([0-9a-f-]+)\/replace$/i.exec(path);
+  if (request.method === 'POST' && replacePendingMatch) {
+    const formData = await request.formData();
+    const requestBody = parseJson(String(formData.get('request') || 'null')) as IssueRequest & { reason?: unknown };
+    const issue = validateIssueRequest(requestBody);
+    const image = await parseImage(formData);
+    const certificateId = replacePendingMatch[1];
+    const versionId = replacePendingMatch[2];
+    const current = await env.DB.prepare(
+      `SELECT c.status AS certificate_status, v.reissue_reason
+         FROM certificates c JOIN certificate_versions v ON v.certificate_id = c.id
+        WHERE c.id = ? AND v.id = ? AND v.status = 'pending'`,
+    ).bind(certificateId, versionId).first<{
+      certificate_status: 'pending' | 'valid';
+      reissue_reason: string | null;
+    }>();
+    if (!current || !['pending', 'valid'].includes(current.certificate_status)) {
+      return jsonResponse({ error: 'Pending certificate version not found.' }, 404);
+    }
+    const reason = current.certificate_status === 'valid'
+      ? requiredText(requestBody.reason ?? current.reissue_reason, 'reissue reason')
+      : undefined;
+    return jsonResponse({
+      certificate: await createPendingVersion(
+        env,
+        issue,
+        image,
+        undefined,
+        { certificateId, versionId, reason },
+      ),
+    }, 201);
+  }
+
   const finalizeMatch = /^\/api\/admin\/certificates\/([0-9a-f-]+)\/versions\/([0-9a-f-]+)\/finalize$/i.exec(path);
   if (request.method === 'POST' && finalizeMatch) {
     const { file, bytes } = await parsePdf(await request.formData());
@@ -664,7 +813,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     const versionId = finalizeMatch[2];
     const pending = await env.DB.prepare(
       `SELECT c.status AS certificate_status, v.version_number, v.status AS version_status,
-              v.pdf_sha256
+              v.pdf_sha256, v.snapshot_json
          FROM certificates c
          JOIN certificate_versions v ON v.certificate_id = c.id
         WHERE c.id = ? AND v.id = ?`,
@@ -673,6 +822,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
       version_number: number;
       version_status: string;
       pdf_sha256: string | null;
+      snapshot_json: string;
     }>();
     if (!pending) {
       return jsonResponse({ error: 'Pending certificate version not found.' }, 404);
@@ -686,6 +836,20 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
       return jsonResponse({ error: 'Pending certificate version not found.' }, 409);
     }
 
+    const snapshot = JSON.parse(pending.snapshot_json) as { nfcTagUid?: string; nfcTagPlacement?: string };
+    const nfcTagUid = snapshot.nfcTagUid;
+    let existingTag: { certificate_id: string; status: string } | null = null;
+    if (nfcTagUid) {
+      existingTag = await env.DB.prepare(
+        'SELECT certificate_id, status FROM nfc_tags WHERE tag_reference = ?',
+      ).bind(nfcTagUid).first<{ certificate_id: string; status: string }>();
+      if (existingTag && !(existingTag.certificate_id === certificateId && existingTag.status === 'active')) {
+        return jsonResponse({
+          error: "NFC UID is already registered. Use a new UID or the certificate's existing active tag.",
+        }, 409);
+      }
+    }
+
     const pdfPath = `certificates/${certificateId}/v${pending.version_number}/certificate-${digest}.pdf`;
     await env.CERTIFICATE_FILES.put(pdfPath, bytes, {
       httpMetadata: { contentType: 'application/pdf' },
@@ -693,7 +857,32 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     });
     try {
       const now = new Date().toISOString();
+      const newTagId = nfcTagUid && !existingTag ? crypto.randomUUID() : null;
+      const tagRegistration = newTagId && nfcTagUid
+        ? [
+          env.DB.prepare(
+            `INSERT INTO nfc_tags
+              (id, certificate_id, tag_reference, placement, registered_at, status, tested)
+             SELECT ?, ?, ?, ?, ?, 'active', 0
+              WHERE EXISTS (
+                SELECT 1 FROM certificate_versions v JOIN certificates c ON c.id = v.certificate_id
+                 WHERE v.id = ? AND v.certificate_id = ? AND v.status = 'pending'
+                   AND c.status IN ('pending', 'valid')
+              )`,
+          ).bind(newTagId, certificateId, nfcTagUid, snapshot.nfcTagPlacement, now, versionId, certificateId),
+          env.DB.prepare(
+            `INSERT INTO certificate_events (id, certificate_id, event_type, occurred_at, details_json)
+             SELECT ?, certificate_id, 'tag_registered', ?, ? FROM nfc_tags WHERE id = ?`,
+          ).bind(
+            crypto.randomUUID(),
+            now,
+            JSON.stringify({ tagId: newTagId, tagReference: nfcTagUid, placement: snapshot.nfcTagPlacement }),
+            newTagId,
+          ),
+        ]
+        : [];
       const results = await env.DB.batch([
+        ...tagRegistration,
         env.DB.prepare(
           `UPDATE certificate_versions SET status = 'superseded'
             WHERE certificate_id = ? AND status = 'valid'
@@ -726,7 +915,11 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
         env.DB.prepare(
           `INSERT INTO certificate_events (id, certificate_id, event_type, occurred_at, details_json)
            SELECT ?, v.certificate_id,
-                  CASE WHEN version_number = 1 THEN 'issued' ELSE 'reissued' END,
+                  CASE WHEN EXISTS (
+                    SELECT 1 FROM certificate_events prior
+                     WHERE prior.certificate_id = v.certificate_id
+                       AND prior.event_type IN ('issued', 'reissued')
+                  ) THEN 'reissued' ELSE 'issued' END,
                   ?, ?
              FROM certificate_versions v JOIN certificates c ON c.id = v.certificate_id
             WHERE v.id = ? AND v.certificate_id = ? AND v.status = 'valid'
@@ -737,8 +930,12 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
           versionId, certificateId, digest,
         ),
       ]);
+      const offset = tagRegistration.length;
       if (results.some(result => !result.success)
-        || !results[1].meta.changes || !results[2].meta.changes || !results[3].meta.changes) {
+        || (newTagId && (!results[0].meta.changes || !results[1].meta.changes))
+        || !results[offset + 1].meta.changes
+        || !results[offset + 2].meta.changes
+        || !results[offset + 3].meta.changes) {
         throw new Error('The pending certificate could not be finalized.');
       }
     } catch (error) {
@@ -749,6 +946,11 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
         return jsonResponse({ ok: true, sha256: digest });
       }
       await env.CERTIFICATE_FILES.delete(pdfPath);
+      if (nfcTagUid && error instanceof Error && /UNIQUE constraint failed: nfc_tags\.tag_reference/i.test(error.message)) {
+        return jsonResponse({
+          error: "NFC UID is already registered. Use a new UID or the certificate's existing active tag.",
+        }, 409);
+      }
       throw error;
     }
     return jsonResponse({ ok: true, sha256: digest });
@@ -873,7 +1075,7 @@ async function verifyRoute(request: Request, env: Env): Promise<Response> {
       url: `${certificateConfig.canonicalOrigin}/work/${encodeURIComponent(certificate.artwork_slug)}/`,
     },
     pdf: certificate.pdf_path && certificate.pdf_sha256
-      ? `${certificateConfig.canonicalOrigin}/api/verify/pdf?t=${encodeURIComponent(token)}`
+      ? `${new URL(request.url).origin}/api/verify/pdf?t=${encodeURIComponent(token)}`
       : null,
   });
 }
@@ -952,13 +1154,13 @@ export default {
       return withCors(response, request, env);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request failed.';
-      const status = /Enter a valid|Enter an NFC tag reference|Enter a replacement NFC tag reference|Choose|Limited edition size must match|Limited editions|Edition number|The artwork|Upload an artwork|Upload a certificate PDF|certificate file is not a valid PDF|Reissue details|Certificate type|reason|valid JSON/i.test(message)
+      const status = /Enter a valid|Enter an NFC tag reference|Enter a replacement NFC tag reference|Choose|Limited edition size must match|Limited editions|Edition number|The artwork|Upload an artwork|Upload a certificate PDF|certificate file is not a valid PDF|Reissue details|Pending certificate edits|Certificate type|reason|valid JSON|Enter an NFC tag UID|Enter an NFC tag placement/i.test(message)
         ? 400
         : /GitHub authorization could not be verified/i.test(message)
           ? 503
-        : /could not be finalized|Pending certificate version/.test(message)
+        : /could not be finalized|Could not replace the pending certificate preview|Pending certificate version/.test(message)
           ? 409
-        : /UNIQUE constraint|limited edition size cannot change/.test(message)
+        : /NFC UID is already registered|UNIQUE constraint|limited edition size cannot change/.test(message)
           ? 409
           : 500;
       return errorResponse(

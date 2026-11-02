@@ -1,9 +1,11 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import JSZip from 'jszip';
 import QRCode from 'qrcode';
+import { getNfcTagUidLabel } from './certificate-pdf-label';
 
 (() => {
   const configUrl = window.CERTIFICATES_API_URL;
+  let activePreviewUrl = null;
   const types = [
     { value: 'original', label: 'Original' },
     { value: 'limited_edition', label: 'Limited edition' },
@@ -36,6 +38,8 @@ import QRCode from 'qrcode';
   }
 
   function showManager(message = '') {
+    if (activePreviewUrl) URL.revokeObjectURL(activePreviewUrl);
+    activePreviewUrl = null;
     document.getElementById('modal').innerHTML = `
       <h2>Artwork certificates</h2>
       <p class="hint">New certificates become valid after their PDF is created and stored.</p>
@@ -90,7 +94,7 @@ import QRCode from 'qrcode';
           ${pending ? `<div class="hint">${escapeHtml(certificate.verificationUrl)}</div>` : ''}
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn" data-history="${escapeHtml(certificate.id)}">History</button>
-            ${pending ? `<button class="btn primary" data-complete="${escapeHtml(certificate.id)}" data-version="${escapeHtml(certificate.version_id)}">Complete PDF</button>` : ''}
+            ${pending ? `<button class="btn primary" data-complete="${escapeHtml(certificate.id)}" data-version="${escapeHtml(certificate.version_id)}">Review PDF</button>` : ''}
             ${valid ? `<button class="btn" data-reissue="${escapeHtml(certificate.id)}">Reissue</button>
               <button class="btn" data-tags="${escapeHtml(certificate.id)}">NFC tags</button>
               <button class="btn danger" data-revoke="${escapeHtml(certificate.id)}">Revoke</button>` : ''}
@@ -130,18 +134,22 @@ import QRCode from 'qrcode';
     }
   }
 
-  function openIssueForm(reissue = null) {
+  function openIssueForm(reissue = null, pendingDraft = null) {
     const entries = getEntries();
-    const artworkSelect = reissue
-      ? `<input type="hidden" id="certificate-artwork" value="${escapeHtml(reissue.artwork_slug)}">
-         <p>${escapeHtml(reissue.snapshot?.title || reissue.artwork_slug)}</p>`
+    const sourceCertificate = pendingDraft?.certificate || reissue;
+    const sourceSnapshot = pendingDraft?.request?.artwork || sourceCertificate?.snapshot || {};
+    const artworkSlug = sourceSnapshot.slug || sourceCertificate?.artwork_slug;
+    const artworkSelect = sourceCertificate
+      ? `<input type="hidden" id="certificate-artwork" value="${escapeHtml(artworkSlug)}">
+         <p>${escapeHtml(sourceSnapshot.title || artworkSlug)}</p>`
       : `<select id="certificate-artwork">
           <option value="">Choose artwork</option>
           ${entries.map(entry => `<option value="${escapeHtml(entry.slug)}">${escapeHtml(entry.data.title || entry.slug)}</option>`).join('')}
         </select>`;
-    const defaultType = reissue?.certificate_type || 'original';
+    const defaultType = sourceCertificate?.certificate_type || 'original';
+    const reason = pendingDraft?.reason || sourceCertificate?.reissue_reason || '';
     document.getElementById('modal').innerHTML = `
-      <h2>${reissue ? 'Reissue certificate' : 'Issue certificate'}</h2>
+      <h2>${pendingDraft ? 'Edit pending certificate' : reissue ? 'Reissue certificate' : 'Issue certificate'}</h2>
       <div class="field"><label for="certificate-artwork">Artwork</label>${artworkSelect}</div>
       <div class="field"><label for="certificate-type">Certificate type</label>
         <select id="certificate-type">${types.map(type =>
@@ -150,21 +158,33 @@ import QRCode from 'qrcode';
       </div>
       <div class="row2" id="certificate-edition-fields">
         <div class="field"><label for="certificate-edition-number">Edition number</label>
-          <input type="number" id="certificate-edition-number" min="1" value="${escapeHtml(reissue?.edition_number || '')}">
+          <input type="number" id="certificate-edition-number" min="1" value="${escapeHtml(pendingDraft?.request?.editionNumber ?? sourceSnapshot.editionNumber ?? sourceCertificate?.edition_number ?? '')}">
         </div>
         <div class="field"><label for="certificate-edition-size">Edition size</label>
-          <input type="number" id="certificate-edition-size" min="1" value="${escapeHtml(reissue?.edition_size || '')}">
+          <input type="number" id="certificate-edition-size" min="1" value="${escapeHtml(pendingDraft?.request?.editionSize ?? sourceSnapshot.editionSize ?? sourceCertificate?.edition_size ?? '')}">
         </div>
       </div>
-      ${reissue ? `<div class="field"><label for="certificate-reissue-reason">Reason for reissue</label>
-        <input id="certificate-reissue-reason" maxlength="500" required></div>` : ''}
+      <div class="row2">
+        <div class="field"><label for="certificate-nfc-uid">NFC tag UID (optional)</label>
+          <input id="certificate-nfc-uid" maxlength="120" pattern="[A-Za-z0-9._:-]*"
+            value="${escapeHtml(pendingDraft?.request?.nfcTagUid || sourceSnapshot.nfcTagUid || sourceCertificate?.nfc_tag_uid || '')}" placeholder="e.g. 04:A3:2B:C1:D4:E5:F6">
+          <span class="hint">Letters, numbers, dots, colons, dashes and underscores only. Reissues keep an existing active matching UID linked.</span>
+        </div>
+        <div class="field"><label for="certificate-nfc-placement">Tag placement</label>
+          <input id="certificate-nfc-placement" maxlength="200"
+            value="${escapeHtml(pendingDraft?.request?.nfcTagPlacement || sourceSnapshot.nfcTagPlacement || sourceCertificate?.nfc_tag_placement || '')}" placeholder="e.g. reverse lower-right corner">
+          <span class="hint">Required when entering a UID. Existing active tags keep their saved placement.</span>
+        </div>
+      </div>
+      ${reissue || (pendingDraft && sourceCertificate?.status === 'valid') ? `<div class="field"><label for="certificate-reissue-reason">Reason for reissue</label>
+        <input id="certificate-reissue-reason" maxlength="500" required value="${escapeHtml(reason)}"></div>` : ''}
       <div class="field"><label for="certificate-original-image">Original artwork image (JPEG, PNG, WebP or AVIF; max 8 MB)</label>
         <input type="file" id="certificate-original-image" accept="image/jpeg,image/png,image/webp,image/avif">
-        <span class="hint">If no file is chosen, the artwork's current full-size site image is used.</span>
+        <span class="hint">${pendingDraft ? 'The current preview image is kept unless you choose a replacement.' : "If no file is chosen, the artwork's current full-size site image is used."}</span>
       </div>
       <div id="modal-error"></div>
       <div class="modal-footer"><button class="btn" id="certificate-cancel">Cancel</button>
-        <div class="right"><button class="btn primary" id="certificate-submit">${reissue ? 'Create pending reissue' : 'Create pending certificate'}</button></div>
+        <div class="right"><button class="btn primary" id="certificate-submit">${pendingDraft ? 'Update preview' : reissue ? 'Create pending reissue' : 'Create pending certificate'}</button></div>
       </div>`;
     document.getElementById('certificate-cancel').onclick = () => showManager();
     document.getElementById('certificate-type').onchange = event => {
@@ -172,7 +192,7 @@ import QRCode from 'qrcode';
       updateEditionVisibility();
     };
     document.getElementById('certificate-artwork').onchange = updateEditionDefaults;
-    document.getElementById('certificate-submit').onclick = () => submitIssue(reissue);
+    document.getElementById('certificate-submit').onclick = () => submitIssue(reissue, pendingDraft);
     updateEditionDefaults();
   }
 
@@ -197,7 +217,7 @@ import QRCode from 'qrcode';
       entry?.data.editionSize || document.getElementById('certificate-edition-size').value;
   }
 
-  async function submitIssue(reissue) {
+  async function submitIssue(reissue, pendingDraft = null) {
     const button = document.getElementById('certificate-submit');
     const error = document.getElementById('modal-error');
     button.disabled = true;
@@ -206,30 +226,43 @@ import QRCode from 'qrcode';
       const entry = getArtwork(document.getElementById('certificate-artwork').value);
       if (!entry) throw new Error('Choose an artwork.');
       const certificateType = document.getElementById('certificate-type').value;
+      const sourceArtwork = pendingDraft?.request?.artwork || pendingDraft?.certificate?.snapshot || entry.data;
       const request = {
         certificateType,
         artwork: {
-          slug: entry.slug,
-          title: entry.data.title,
-          year: entry.data.year,
-          medium: entry.data.medium,
-          dimensions: entry.data.dimensions,
-          image: entry.data.image,
-          altText: entry.data.altText,
-          support: entry.data.support,
-          printDate: entry.data.printDate,
-          signed: entry.data.signed,
-          editionType: entry.data.editionType,
-          editionSize: entry.data.editionSize
+          slug: pendingDraft ? sourceArtwork.slug : entry.slug,
+          title: sourceArtwork.title,
+          year: sourceArtwork.year,
+          medium: sourceArtwork.medium,
+          dimensions: sourceArtwork.dimensions,
+          image: sourceArtwork.image,
+          altText: sourceArtwork.altText,
+          support: sourceArtwork.support,
+          printDate: sourceArtwork.printDate,
+          signed: sourceArtwork.signed,
+          editionType: sourceArtwork.editionType,
+          editionSize: sourceArtwork.editionSize
         }
       };
       if (certificateType === 'limited_edition') {
         request.editionNumber = Number(document.getElementById('certificate-edition-number').value);
         request.editionSize = Number(document.getElementById('certificate-edition-size').value);
       }
-      if (reissue) request.reason = document.getElementById('certificate-reissue-reason').value.trim();
+      const nfcTagUid = document.getElementById('certificate-nfc-uid').value.trim();
+      const nfcTagPlacement = document.getElementById('certificate-nfc-placement').value.trim();
+      if (nfcTagUid) {
+        if (!/^[A-Za-z0-9._:-]+$/.test(nfcTagUid)) {
+          throw new Error('Enter an NFC tag UID using letters, numbers, dots, colons, dashes or underscores.');
+        }
+        if (!nfcTagPlacement) throw new Error('Enter the NFC tag placement to register this UID.');
+        request.nfcTagUid = nfcTagUid;
+        request.nfcTagPlacement = nfcTagPlacement;
+      }
+      if (reissue || pendingDraft?.certificate?.status === 'valid') {
+        request.reason = document.getElementById('certificate-reissue-reason').value.trim();
+      }
       const selectedFile = document.getElementById('certificate-original-image').files[0];
-      let imageFile = selectedFile;
+      let imageFile = selectedFile || pendingDraft?.imageFile;
       if (!imageFile) {
         const response = await fetch(entry.data.image, { cache: 'no-store' });
         if (!response.ok) throw new Error('Could not load the artwork image. Choose a file to upload instead.');
@@ -240,17 +273,14 @@ import QRCode from 'qrcode';
       const formData = new FormData();
       formData.append('request', JSON.stringify(request));
       formData.append('originalImage', imageFile);
-      const path = reissue
-        ? `/api/admin/certificates/${encodeURIComponent(reissue.id)}/reissue`
-        : '/api/admin/certificates/issue';
+      const path = pendingDraft
+        ? `/api/admin/certificates/${encodeURIComponent(pendingDraft.certificate.id)}/versions/${encodeURIComponent(pendingDraft.certificate.version_id)}/replace`
+        : reissue
+          ? `/api/admin/certificates/${encodeURIComponent(reissue.id)}/reissue`
+          : '/api/admin/certificates/issue';
       const result = await apiRequest(path, { method: 'POST', body: formData });
-      await finishCertificate(result.certificate, imageFile);
-      showManager(`${result.certificate.certificate_number} was issued and is valid.`);
+      await previewCertificate(result.certificate, imageFile);
     } catch (issueError) {
-      if (issueError.certificate) {
-        showManager(`${issueError.certificate.certificate_number} is pending. PDF completion failed: ${issueError.message}`);
-        return;
-      }
       error.innerHTML = `<div class="status-banner error">${escapeHtml(issueError.message)}</div>`;
       button.disabled = false;
     }
@@ -269,14 +299,13 @@ import QRCode from 'qrcode';
       const blob = await response.blob();
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
       const imageFile = new File([blob], `artwork-original.${extension}`, { type: blob.type });
-      await finishCertificate(certificate, imageFile);
-      showManager(`${certificate.certificate_number} was issued and is valid.`);
+      await previewCertificate(certificate, imageFile);
     } catch (error) {
       showManager(error.message);
     }
   }
 
-  async function finishCertificate(certificate, imageFile) {
+  async function previewCertificate(certificate, imageFile) {
     try {
       const pdfBytes = await createCertificatePdf(
         certificate.snapshot,
@@ -284,17 +313,56 @@ import QRCode from 'qrcode';
         certificate.certificate_number,
         imageFile,
       );
-      const formData = new FormData();
-      formData.append('certificatePdf', new File([pdfBytes], 'certificate.pdf', {
-        type: 'application/pdf'
-      }));
-      await apiRequest(
-        `/api/admin/certificates/${encodeURIComponent(certificate.id)}/versions/${encodeURIComponent(certificate.version_id)}/finalize`,
-        { method: 'POST', body: formData },
-      );
+      activePreviewUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+      document.getElementById('modal').innerHTML = `
+        <h2>Review certificate PDF · ${escapeHtml(certificate.certificate_number)}</h2>
+        <p class="hint">Check the certificate details, NFC UID and verification QR code. It stays pending until you approve and finalize.</p>
+        <iframe title="Certificate PDF preview" src="${activePreviewUrl}"
+          style="width:100%;height:min(68vh,720px);border:1px solid var(--line);background:#fff"></iframe>
+        <div id="certificate-preview-error"></div>
+        <div class="modal-footer">
+          <button class="btn" id="certificate-preview-edit">Back to edit</button>
+          <div class="right"><button class="btn primary" id="certificate-preview-approve">Approve and finalize</button></div>
+        </div>`;
+      const pdf = new File([pdfBytes], 'certificate.pdf', { type: 'application/pdf' });
+      document.getElementById('certificate-preview-approve').onclick = async event => {
+        const button = event.currentTarget;
+        const errorBox = document.getElementById('certificate-preview-error');
+        button.disabled = true;
+        errorBox.textContent = '';
+        try {
+          const formData = new FormData();
+          formData.append('certificatePdf', pdf);
+          await apiRequest(
+            `/api/admin/certificates/${encodeURIComponent(certificate.id)}/versions/${encodeURIComponent(certificate.version_id)}/finalize`,
+            { method: 'POST', body: formData },
+          );
+          showManager(`${certificate.certificate_number} was approved and finalized.`);
+        } catch (error) {
+          errorBox.innerHTML = `<div class="status-banner error">${escapeHtml(error.message)}</div>`;
+          button.disabled = false;
+        }
+      };
+      document.getElementById('certificate-preview-edit').onclick = () => {
+        if (activePreviewUrl) URL.revokeObjectURL(activePreviewUrl);
+        activePreviewUrl = null;
+        const existingCertificate = certificate.status === 'valid' ? certificate : null;
+        openIssueForm(existingCertificate, {
+          certificate,
+          imageFile,
+          reason: certificate.reissue_reason || '',
+          request: {
+            artwork: certificate.snapshot,
+            certificateType: certificate.certificate_type,
+            editionNumber: certificate.snapshot.editionNumber,
+            editionSize: certificate.snapshot.editionSize,
+            nfcTagUid: certificate.snapshot.nfcTagUid,
+            nfcTagPlacement: certificate.snapshot.nfcTagPlacement,
+          },
+        });
+      };
     } catch (error) {
-      error.certificate = certificate;
-      throw error;
+      showManager(`The PDF preview could not be prepared. The certificate remains pending: ${error.message}`);
     }
   }
 
@@ -319,22 +387,39 @@ import QRCode from 'qrcode';
     const page = pdf.addPage([595.28, 841.89]);
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const paper = rgb(0.973, 0.965, 0.945);
-    const ink = rgb(0.14, 0.14, 0.12);
+    const paper = rgb(1, 1, 1);
+    const ink = rgb(0.141, 0.141, 0.122);
+    const drawCenteredText = (text, font, size, x, width, y, options = {}) => {
+      const textWidth = font.widthOfTextAtSize(String(text), size);
+      page.drawText(String(text), {
+        x: x + Math.max(0, (width - textWidth) / 2),
+        y,
+        font,
+        size,
+        color: ink,
+        maxWidth: width,
+        ...options,
+      });
+    };
     page.drawRectangle({ x: 0, y: 0, width: 595.28, height: 841.89, color: paper });
     page.drawRectangle({
       x: 22, y: 22, width: 551.28, height: 797.89,
-      borderColor: rgb(0.78, 0.76, 0.71), borderWidth: 0.8
+      borderColor: rgb(0.4, 0.4, 0.37), borderWidth: 0.8
     });
-    page.drawText('VLEMENT J RODRIGUES', { x: 42, y: 785, font: bold, size: 10, color: ink });
-    page.drawText(snapshot.certificateTypeTitle || 'Certificate of Authenticity', {
-      x: 42, y: 750, font: regular, size: 20, color: ink, maxWidth: 500
-    });
-    page.drawText(certificateNumber, { x: 42, y: 729, font: regular, size: 9, color: ink });
+    drawCenteredText('VLEMENT J. RODRIGUES', bold, 12, 214, 185, 777);
+    drawCenteredText(
+      snapshot.certificateTypeTitle || 'Certificate of Authenticity',
+      regular,
+      18,
+      150,
+      296,
+      739,
+    );
+    drawCenteredText(certificateNumber, regular, 9, 250, 90, 117);
 
     const artworkBytes = new Uint8Array(await jpeg.arrayBuffer());
     const artworkImage = await pdf.embedJpg(artworkBytes);
-    const imageBox = { x: 42, y: 220, width: 320, height: 470 };
+    const imageBox = { x: 185, y: 524, width: 229, height: 162 };
     const imageScale = Math.min(
       imageBox.width / artworkImage.width,
       imageBox.height / artworkImage.height,
@@ -348,31 +433,39 @@ import QRCode from 'qrcode';
       height: imageHeight
     });
 
-    let y = 686;
-    const drawField = (label, value) => {
+    const drawField = (label, value, labelX, valueX, y, valueMaxWidth) => {
       if (value === undefined || value === null || value === '') return;
-      page.drawText(String(label).toUpperCase(), { x: 384, y, font: bold, size: 7, color: ink });
-      y -= 16;
+      page.drawText(String(label).toUpperCase(), {
+        x: labelX, y, font: bold, size: 7, color: ink, maxWidth: valueX - labelX - 4
+      });
       page.drawText(String(value), {
-        x: 384, y, font: regular, size: 10, color: ink, maxWidth: 165, lineHeight: 13
+        x: valueX, y: y - 1, font: regular, size: 10, color: ink,
+        maxWidth: valueMaxWidth, lineHeight: 13
       });
-      y -= Math.max(20, regular.heightAtSize(10) + 10);
     };
-    drawField('Artwork', snapshot.title);
-    drawField('Year', snapshot.year);
-    drawField('Medium', snapshot.medium);
-    drawField('Dimensions', snapshot.dimensions);
-    drawField('Support', snapshot.support);
-    drawField('Edition', snapshot.editionNumber && snapshot.editionSize
-      ? `${snapshot.editionNumber} of ${snapshot.editionSize}`
-      : snapshot.editionStatement || null);
-    drawField('Print date', snapshot.printDate);
-    drawField('Signed', snapshot.signed ? 'Yes' : null);
+
+    drawField('Artwork', snapshot.title, 80, 126, 482, 205);
+    drawField('Medium', snapshot.medium, 345, 382, 482, 145);
+    drawField('Year', snapshot.year, 79, 107, 446, 210);
+    drawField('Dimensions', snapshot.dimensions, 346, 399, 446, 130);
+    const extraFields = [
+      ['Support', snapshot.support],
+      ['Edition', snapshot.editionNumber && snapshot.editionSize
+        ? `${snapshot.editionNumber} of ${snapshot.editionSize}`
+        : snapshot.editionStatement],
+      ['Print date', snapshot.printDate],
+      ['Signed', snapshot.signed ? 'Yes' : null],
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+    extraFields.forEach(([label, value], index) => {
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      const labelX = column === 0 ? 80 : 345;
+      const valueX = column === 0 ? 126 : 382;
+      const maxWidth = column === 0 ? 205 : 145;
+      drawField(label, value, labelX, valueX, 413 - row * 26, maxWidth);
+    });
     if (snapshot.certificateWording) {
-      page.drawText(snapshot.certificateWording, {
-        x: 384, y: Math.max(380, y - 10), font: regular, size: 9, color: ink,
-        maxWidth: 165, lineHeight: 13
-      });
+      drawCenteredText(snapshot.certificateWording, regular, 9, 72, 451, 30, { lineHeight: 11 });
     }
 
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
@@ -380,12 +473,27 @@ import QRCode from 'qrcode';
     });
     const qrBytes = Uint8Array.from(atob(qrDataUrl.split(',')[1]), character => character.charCodeAt(0));
     const qr = await pdf.embedPng(qrBytes);
-    page.drawImage(qr, { x: 404, y: 204, width: 112, height: 112 });
-    page.drawText('Scan to verify', { x: 418, y: 190, font: regular, size: 8, color: ink });
-    page.drawText('This certificate is valid only when verified online.', {
-      x: 42, y: 116, font: regular, size: 9, color: ink, maxWidth: 500
+    page.drawImage(qr, { x: 253, y: 198, width: 60, height: 60 });
+    drawCenteredText('Scan to verify', regular, 8, 259, 64, 184);
+    drawCenteredText('This certificate is valid only when verified online.', regular, 9, 147, 305, 78);
+    drawCenteredText('VLEMENT.COM/VERIFY', bold, 8, 217, 160, 58);
+    page.drawLine({
+      start: { x: 104, y: 337 }, end: { x: 239, y: 337 },
+      thickness: 0.6, color: rgb(0.52, 0.52, 0.49)
     });
-    page.drawText('VLEMENT.COM/VERIFY', { x: 42, y: 47, font: bold, size: 8, color: ink });
+    page.drawLine({
+      start: { x: 358, y: 337 }, end: { x: 493, y: 337 },
+      thickness: 0.6, color: rgb(0.52, 0.52, 0.49)
+    });
+    drawCenteredText('Date', regular, 7, 104, 135, 322);
+    drawCenteredText('Artist Signature', regular, 7, 358, 135, 322);
+    const nfcTagUidLabel = getNfcTagUidLabel(snapshot);
+    if (nfcTagUidLabel) {
+      page.drawText(nfcTagUidLabel, {
+        x: 144, y: 169, font: regular, size: 6,
+        color: rgb(0.38, 0.38, 0.36), maxWidth: 109, lineHeight: 8
+      });
+    }
     return pdf.save({ useObjectStreams: false });
   }
 

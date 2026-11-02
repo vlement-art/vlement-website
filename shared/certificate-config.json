@@ -1,0 +1,36 @@
+{
+  "canonicalOrigin": "https://vlement.com",
+  "artist": "Vlement J Rodrigues",
+  "certificateTypes": {
+    "original": {
+      "label": "Original",
+      "prefix": "O",
+      "requiresEdition": false,
+      "uniquePerArtwork": true,
+      "nfcDefault": true,
+      "pdfTitle": "Certificate of Authenticity",
+      "pdfWording": "This certifies this one-of-a-kind artwork as an original work by Vlement J Rodrigues.",
+      "editionBlock": null
+    },
+    "limited_edition": {
+      "label": "Limited edition",
+      "prefix": "LE",
+      "requiresEdition": true,
+      "uniquePerArtwork": false,
+      "nfcDefault": false,
+      "pdfTitle": "Limited Edition Certificate",
+      "pdfWording": "This certifies an individually numbered print from a fixed edition.",
+      "editionBlock": "edition_number / edition_size"
+    },
+    "open_edition": {
+      "label": "Open edition",
+      "prefix": "OE",
+      "requiresEdition": false,
+      "uniquePerArtwork": false,
+      "nfcDefault": false,
+      "pdfTitle": "Certificate of Authenticity, Open Edition",
+      "pdfWording": "This certifies an open edition with no limit on quantity. No scarcity is implied.",
+      "editionBlock": null
+    }
+  }
+}

@@ -1,6 +1,10 @@
 # build output
 dist/
 .astro/
+src/env.d.ts
+public/admin/certificates-config.js
+public/admin/certificates.js
+workers/certificates/worker-configuration.d.ts
 
 # dependencies
 node_modules/
@@ -9,6 +13,7 @@ node_modules/
 .env
 .env.local
 .env.*.local
+workers/certificates/.dev.vars
 
 # editor / OS
 .DS_Store

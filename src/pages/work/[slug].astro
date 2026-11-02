@@ -112,10 +112,10 @@ const structuredData = {
         <div class="mt-10 flex flex-wrap items-center gap-4 border-t border-line pt-6">
           {data.price && <strong class="text-lg text-accent-dark">{data.price}</strong>}
           <a
-            href={`mailto:${site.email}?subject=${encodeURIComponent(`Enquiry about “${data.title}”`)}`}
+            href={`/contact?piece=${encodeURIComponent(data.title)}`}
             class="inline-flex min-h-[2.75rem] items-center justify-center border border-ink bg-ink px-4 py-2 text-xs uppercase tracking-wider text-paper"
           >
-            Contact about this work
+            Enquire about this piece
           </a>
         </div>
       </div>

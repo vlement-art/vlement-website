@@ -1,6 +1,8 @@
 ---
 title: Thanks! Mr Overton
 year: 2026
+width: 3456
+height: 5184
 width: 1920
 height: 2729
 medium: Oil on Canvas Panel

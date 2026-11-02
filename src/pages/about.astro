@@ -1,13 +1,16 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import ExhibitionDateUpdater from '../components/ExhibitionDateUpdater.astro';
 import { site } from '../data/site';
+import exhibitionsData from '../data/exhibitions.json';
+import { formatExhibitionDates, getExhibitionGroups } from '../data/exhibitions';
 
 // EDIT ME: replace with a real CV file in /public/documents/ once you have one,
 // or remove the link in the template below if you don't want to offer a CV.
 const cvUrl = '/documents/cv.pdf';
 
+const exhibitions = getExhibitionGroups(exhibitionsData);
 const timeline = [
-  { year: '2026', text: 'Selected for "The Artists Among Us", Sotheby\'s, London.' },
   { year: '2026', text: 'Began the Yellow Balloon series.' },
   { year: '2024–2025', text: 'Coastal Studies series developed from location drawings made in London and along the south coast.' },
 ];
@@ -52,6 +55,24 @@ const timeline = [
 
       <h2 class="mt-10 font-serif text-2xl italic">Exhibitions & highlights</h2>
       <ul class="mt-4 space-y-4 border-t border-line pt-4 text-sm">
+        {exhibitions.current.map((item) => (
+          <li class="flex gap-4" data-about-exhibition data-start-date={item.startDate} data-end-date={item.endDate}>
+            <span class="w-24 flex-none text-muted" data-exhibition-status-label>On now</span>
+            <span>{item.title} · {item.venue} · {formatExhibitionDates(item)}</span>
+          </li>
+        ))}
+        {exhibitions.upcoming.map((item) => (
+          <li class="flex gap-4" data-about-exhibition data-start-date={item.startDate} data-end-date={item.endDate}>
+            <span class="w-24 flex-none text-muted" data-exhibition-status-label>{new Date(`${item.startDate}T00:00:00.000Z`).getUTCFullYear()} (upcoming)</span>
+            <span>{item.title} · {item.venue} · {formatExhibitionDates(item)}</span>
+          </li>
+        ))}
+        {exhibitions.past.map((item) => (
+          <li class="flex gap-4" data-about-exhibition data-start-date={item.startDate} data-end-date={item.endDate}>
+            <span class="w-24 flex-none text-muted" data-exhibition-status-label>{new Date(`${item.endDate}T00:00:00.000Z`).getUTCFullYear()}</span>
+            <span>{item.title} · {item.venue} · {formatExhibitionDates(item)}</span>
+          </li>
+        ))}
         {timeline.map((item) => (
           <li class="flex gap-4">
             <span class="w-24 flex-none text-muted">{item.year}</span>
@@ -67,3 +88,5 @@ const timeline = [
     </div>
   </section>
 </BaseLayout>
+
+<ExhibitionDateUpdater />

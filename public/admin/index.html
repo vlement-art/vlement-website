@@ -923,10 +923,14 @@ function showApp() {
   document.getElementById('app-screen').hidden = false;
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn" id="certificates-btn">Certificates</button>
+    <button class="btn" id="admin-exhibitions-btn">Exhibitions</button>
     <button class="btn" id="export-xlsx-btn">Export Excel (.xlsx)</button>
     <button class="btn" id="logout-btn">Sign out</button>
   `;
   document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('admin-exhibitions-btn').addEventListener('click', () => {
+    window.VlementAdminExhibitions.open();
+  });
   document.getElementById('export-xlsx-btn').addEventListener('click', window.exportArtworksExcel);
   loadEntries().then(() => {
     if (typeof initCollections === 'function') initCollections();
@@ -952,6 +956,7 @@ if (token) {
 }
 </script>
 <script src="collections.js"></script>
+<script src="exhibitions.js"></script>
 <script src="certificates-config.js"></script>
 <script src="certificates.js"></script>
 </body>

@@ -27,6 +27,8 @@ export interface IssueRequest {
   certificateType: CertificateType;
   editionNumber?: number;
   editionSize?: number;
+  nfcTagUid?: string;
+  nfcTagPlacement?: string;
 }
 
 export type CertificateType = 'original' | 'limited_edition' | 'open_edition';

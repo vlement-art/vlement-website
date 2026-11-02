@@ -9,11 +9,25 @@ An issue is initially `pending`. The admin creates a PDF containing the
 artwork image, certificate details, and a QR code. The Worker stores the PDF
 privately, records its SHA-256 digest, and only then makes the certificate
 valid. Public verification never exposes a pending or voided issue as valid.
+The admin presents a browser PDF preview before finalization; approval stores
+the exact previewed PDF. Editing replaces the pending version while retaining
+the certificate number and verification token. The previous valid version of
+a reissue remains available until the replacement is approved.
 Reissues preserve the previous valid version until the replacement PDF is
-stored. SHA-256 confirms the bytes served match the stored issuance record; it
+stored and finalized. An optional NFC UID and placement entered at issue or
+reissue are included in the immutable certificate snapshot and PDF; a new tag
+record is registered only when that PDF is finalized. Reissuing with the same
+active UID on that certificate reuses the existing tag record without creating
+a duplicate. Tag references are globally unique, including revoked tags, so a
+UID registered to another certificate or a previously revoked tag cannot be
+reused. SHA-256 confirms the bytes served match the stored issuance record; it
 is an integrity check, not a cryptographic signature. Certificate numbers,
 edition allocations, version history, and audit history are not reused or
 deleted.
+
+The public verification response points PDF downloads at the origin serving
+the Worker request. The artwork and verification pages continue to use the
+configured canonical website origin.
 
 The ZIP backup contains a JSON snapshot of counters, certificates, versions,
 NFC tags, and audit events, plus every object in the private certificate R2

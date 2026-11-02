@@ -1,0 +1,41 @@
+<script>
+  const today = new Date().toISOString().slice(0, 10);
+  const exhibitionStatus = (startDate: string, endDate: string) => {
+    if (startDate > today) return 'upcoming';
+    if (endDate < today) return 'past';
+    return 'current';
+  };
+
+  document.querySelectorAll<HTMLElement>('[data-exhibition-item]').forEach(item => {
+    const status = exhibitionStatus(item.dataset.startDate || '', item.dataset.endDate || '');
+    const section = document.querySelector<HTMLElement>(`[data-exhibition-section="${status}"]`);
+    const list = section?.querySelector<HTMLElement>('[data-exhibition-list]');
+    if (section && list) {
+      list.append(item);
+      section.hidden = false;
+    }
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-exhibition-section]').forEach(section => {
+    const list = section.querySelector<HTMLElement>('[data-exhibition-list]');
+    section.hidden = !list?.children.length;
+  });
+
+  const emptyMessage = document.querySelector<HTMLElement>('[data-exhibitions-empty]');
+  if (emptyMessage) {
+    emptyMessage.hidden = Boolean(document.querySelector('[data-exhibition-item]'));
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-about-exhibition]').forEach(item => {
+    const startDate = item.dataset.startDate || '';
+    const endDate = item.dataset.endDate || '';
+    const status = exhibitionStatus(startDate, endDate);
+    const label = item.querySelector<HTMLElement>('[data-exhibition-status-label]');
+    if (!label) return;
+    label.textContent = status === 'current'
+      ? 'On now'
+      : status === 'upcoming'
+        ? `${startDate.slice(0, 4)} (upcoming)`
+        : endDate.slice(0, 4);
+  });
+</script>

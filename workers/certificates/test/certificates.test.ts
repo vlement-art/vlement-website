@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it, vi } from 'vitest';
 import worker, { certificateTypes, validateIssueRequest } from '../src';
 import type { Env } from '../src/types';
+import { getNfcTagUidLabel } from '../../../src/admin/certificate-pdf-label';
 
 const artwork = {
   slug: 'test-artwork',
@@ -33,6 +34,30 @@ describe('certificate requests', () => {
     expect(request.certificateType).toBe('original');
     expect(request.artwork.title).toBe(artwork.title);
     expect(certificateTypes.original.uniquePerArtwork).toBe(true);
+    expect(request.nfcTagUid).toBeUndefined();
+    expect(validateIssueRequest({
+      artwork,
+      certificateType: 'original',
+      nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
+      nfcTagPlacement: 'Reverse lower edge',
+    })).toMatchObject({
+      nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
+      nfcTagPlacement: 'Reverse lower edge',
+    });
+    expect(getNfcTagUidLabel({ nfcTagUid: '04:A3:2B:C1:D4:E5:F6' }))
+      .toBe('NFC Tag · UID: 04:A3:2B:C1:D4:E5:F6');
+    expect(getNfcTagUidLabel({})).toBeNull();
+    expect(() => validateIssueRequest({
+      artwork,
+      certificateType: 'original',
+      nfcTagUid: 'not a UID',
+      nfcTagPlacement: 'Reverse lower edge',
+    })).toThrow('Enter an NFC tag UID');
+    expect(() => validateIssueRequest({
+      artwork,
+      certificateType: 'original',
+      nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
+    })).toThrow('Enter a valid NFC tag placement');
   });
 
   it('rejects invalid edition numbers, mismatched types, and unsafe image paths', () => {
@@ -84,7 +109,12 @@ describe('certificate requests', () => {
         Origin: 'https://vlement.com',
       };
       const formData = new FormData();
-      formData.append('request', JSON.stringify({ artwork, certificateType: 'original' }));
+      formData.append('request', JSON.stringify({
+        artwork,
+        certificateType: 'original',
+        nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
+        nfcTagPlacement: 'Reverse lower edge',
+      }));
       formData.append('originalImage', new File(['image-bytes'], 'artwork.jpg', { type: 'image/jpeg' }));
       const issueResponse = await worker.fetch(new Request(
         'https://certificates.test/api/admin/certificates/issue',
@@ -98,22 +128,68 @@ describe('certificate requests', () => {
         verification_token: string;
         verificationUrl: string;
         version_status: string;
-        snapshot: { title: string };
+        snapshot: { title: string; nfcTagUid: string; nfcTagPlacement: string };
       } };
       expect(certificate.version_status).toBe('pending');
       expect(certificate.snapshot.title).toBe(artwork.title);
+      expect(certificate.snapshot.nfcTagUid).toBe('04:A3:2B:C1:D4:E5:F6');
+      expect(certificate.snapshot.nfcTagPlacement).toBe('Reverse lower edge');
+
+      const replaceForm = new FormData();
+      replaceForm.append('request', JSON.stringify({
+        artwork: { ...artwork, title: 'Edited test artwork' },
+        certificateType: 'original',
+        nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
+        nfcTagPlacement: 'Reverse lower edge',
+      }));
+      replaceForm.append('originalImage', new File(['edited-image'], 'artwork.jpg', {
+        type: 'image/jpeg',
+      }));
+      const replaceResponse = await worker.fetch(new Request(
+        `https://certificates.test/api/admin/certificates/${certificate.id}/versions/${certificate.version_id}/replace`,
+        { method: 'POST', headers, body: replaceForm },
+      ), authorizedEnv);
+      expect(replaceResponse.status).toBe(201);
+      const { certificate: editedCertificate } = await replaceResponse.json() as {
+        certificate: {
+          version_id: string;
+          version_number: number;
+          certificate_number: string;
+          verification_token: string;
+          snapshot: { title: string };
+        };
+      };
+      expect(editedCertificate.version_number).toBe(2);
+      expect(editedCertificate.certificate_number).toBe(certificate.certificate_number);
+      expect(editedCertificate.verification_token).toBe(certificate.verification_token);
+      expect(editedCertificate.snapshot.title).toBe('Edited test artwork');
+      const pendingVersions = await worker.fetch(new Request(
+        `https://certificates.test/api/admin/certificates/${certificate.id}/versions`,
+        { headers },
+      ), authorizedEnv);
+      expect((await pendingVersions.json() as {
+        versions: Array<{ version_number: number; status: string }>;
+      }).versions.map(version => [version.version_number, version.status])).toEqual([
+        [2, 'pending'],
+        [1, 'voided'],
+      ]);
 
       const pendingResponse = await worker.fetch(new Request(
         `https://certificates.test/api/verify?t=${certificate.verification_token}`,
       ), authorizedEnv);
       expect((await pendingResponse.json() as { status: string }).status).toBe('pending');
+      const tagsBeforeFinalization = await worker.fetch(new Request(
+        `https://certificates.test/api/admin/certificates/${certificate.id}/tags`,
+        { headers },
+      ), authorizedEnv);
+      expect((await tagsBeforeFinalization.json() as { tags: unknown[] }).tags).toEqual([]);
 
       const pdfForm = new FormData();
       pdfForm.append('certificatePdf', new File(['%PDF-1.7\ncertificate\n%%EOF'], 'certificate.pdf', {
         type: 'application/pdf',
       }));
       const finalizeResponse = await worker.fetch(new Request(
-        `https://certificates.test/api/admin/certificates/${certificate.id}/versions/${certificate.version_id}/finalize`,
+        `https://certificates.test/api/admin/certificates/${certificate.id}/versions/${editedCertificate.version_id}/finalize`,
         { method: 'POST', headers, body: pdfForm },
       ), authorizedEnv);
       expect(finalizeResponse.status).toBe(200);
@@ -129,8 +205,41 @@ describe('certificate requests', () => {
       };
       expect(verification.status).toBe('valid');
       expect(verification.certificateNumber).toBe(certificate.certificate_number);
-      expect(verification.artwork.title).toBe(artwork.title);
-      expect(verification.pdf).toContain('/api/verify/pdf?t=');
+      expect(verification.artwork.title).toBe('Edited test artwork');
+      expect(verification.pdf).toBe(
+        `https://certificates.test/api/verify/pdf?t=${encodeURIComponent(certificate.verification_token)}`,
+      );
+      const issuedTags = await worker.fetch(new Request(
+        `https://certificates.test/api/admin/certificates/${certificate.id}/tags`,
+        { headers },
+      ), authorizedEnv);
+      expect((await issuedTags.json() as { tags: Array<{ tag_reference: string; placement: string; status: string }> }).tags)
+        .toEqual([{
+          tag_reference: '04:A3:2B:C1:D4:E5:F6',
+          placement: 'Reverse lower edge',
+          status: 'active',
+          tested: 0,
+          id: expect.any(String),
+          registered_at: expect.any(String),
+          replaced_tag_id: null,
+        }]);
+
+      const duplicateIssue = new FormData();
+      duplicateIssue.append('request', JSON.stringify({
+        artwork: { ...artwork, slug: 'duplicate-nfc-test' },
+        certificateType: 'original',
+        nfcTagUid: '04:a3:2b:c1:d4:e5:f6',
+        nfcTagPlacement: 'Reverse lower edge',
+      }));
+      duplicateIssue.append('originalImage', new File(['image'], 'artwork.jpg', { type: 'image/jpeg' }));
+      const duplicateResponse = await worker.fetch(new Request(
+        'https://certificates.test/api/admin/certificates/issue',
+        { method: 'POST', headers, body: duplicateIssue },
+      ), authorizedEnv);
+      expect(duplicateResponse.status).toBe(409);
+      expect(await duplicateResponse.json()).toEqual({
+        error: "NFC UID is already registered. Use a new UID or the certificate's existing active tag.",
+      });
 
       const pdfResponse = await worker.fetch(new Request(
         `https://certificates.test/api/verify/pdf?t=${certificate.verification_token}`,
@@ -144,6 +253,8 @@ describe('certificate requests', () => {
         artwork,
         certificateType: 'original',
         reason: 'Corrected certificate details',
+        nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
+        nfcTagPlacement: 'Updated location should not replace saved placement',
       }));
       reissueForm.append('originalImage', new File(['replacement-image'], 'artwork.jpg', {
         type: 'image/jpeg',
@@ -154,27 +265,70 @@ describe('certificate requests', () => {
       ), authorizedEnv);
       expect(reissueResponse.status).toBe(201);
       const { certificate: pendingReissue } = await reissueResponse.json() as {
-        certificate: { version_id: string; version_number: number; verification_token: string };
+        certificate: {
+          version_id: string;
+          version_number: number;
+          verification_token: string;
+          snapshot: { nfcTagPlacement: string };
+        };
       };
-      expect(pendingReissue.version_number).toBe(2);
+      expect(pendingReissue.version_number).toBe(3);
+      expect(pendingReissue.snapshot.nfcTagPlacement)
+        .toBe('Reverse lower edge');
       const beforeReissue = await worker.fetch(new Request(
         `https://certificates.test/api/verify?t=${pendingReissue.verification_token}`,
       ), authorizedEnv);
-      expect((await beforeReissue.json() as { version: number }).version).toBe(1);
+      expect((await beforeReissue.json() as { version: number }).version).toBe(2);
+      const previousPdf = await worker.fetch(new Request(
+        `https://certificates.test/api/verify/pdf?t=${pendingReissue.verification_token}`,
+      ), authorizedEnv);
+      expect(previousPdf.status).toBe(200);
+
+      const replaceReissueForm = new FormData();
+      replaceReissueForm.append('request', JSON.stringify({
+        artwork: { ...artwork, title: 'Edited reissue artwork' },
+        certificateType: 'original',
+        reason: 'Corrected certificate details',
+        nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
+        nfcTagPlacement: 'Reverse lower edge',
+      }));
+      replaceReissueForm.append('originalImage', new File(['edited-reissue'], 'artwork.jpg', {
+        type: 'image/jpeg',
+      }));
+      const replaceReissueResponse = await worker.fetch(new Request(
+        `https://certificates.test/api/admin/certificates/${certificate.id}/versions/${pendingReissue.version_id}/replace`,
+        { method: 'POST', headers, body: replaceReissueForm },
+      ), authorizedEnv);
+      expect(replaceReissueResponse.status).toBe(201);
+      const { certificate: editedReissue } = await replaceReissueResponse.json() as {
+        certificate: { version_id: string; version_number: number; snapshot: { title: string } };
+      };
+      expect(editedReissue.version_number).toBe(4);
+      expect(editedReissue.snapshot.title).toBe('Edited reissue artwork');
+      const previousVersionStillValid = await worker.fetch(new Request(
+        `https://certificates.test/api/verify?t=${pendingReissue.verification_token}`,
+      ), authorizedEnv);
+      expect((await previousVersionStillValid.json() as { version: number }).version).toBe(2);
 
       const reissuePdf = new FormData();
       reissuePdf.append('certificatePdf', new File(['%PDF-1.7\nreissue\n%%EOF'], 'certificate.pdf', {
         type: 'application/pdf',
       }));
       const finalizeReissue = await worker.fetch(new Request(
-        `https://certificates.test/api/admin/certificates/${certificate.id}/versions/${pendingReissue.version_id}/finalize`,
+        `https://certificates.test/api/admin/certificates/${certificate.id}/versions/${editedReissue.version_id}/finalize`,
         { method: 'POST', headers, body: reissuePdf },
       ), authorizedEnv);
       expect(finalizeReissue.status).toBe(200);
       const afterReissue = await worker.fetch(new Request(
         `https://certificates.test/api/verify?t=${pendingReissue.verification_token}`,
       ), authorizedEnv);
-      expect((await afterReissue.json() as { version: number }).version).toBe(2);
+      expect((await afterReissue.json() as { version: number }).version).toBe(4);
+      const tagsAfterReissue = await worker.fetch(new Request(
+        `https://certificates.test/api/admin/certificates/${certificate.id}/tags`,
+        { headers },
+      ), authorizedEnv);
+      expect((await tagsAfterReissue.json() as { tags: Array<{ tag_reference: string }> }).tags
+        .filter(tag => tag.tag_reference === '04:A3:2B:C1:D4:E5:F6')).toHaveLength(1);
       const historyResponse = await worker.fetch(new Request(
         `https://certificates.test/api/admin/certificates/${certificate.id}/versions`,
         { headers },
@@ -183,7 +337,9 @@ describe('certificate requests', () => {
       expect((await historyResponse.json() as {
         versions: Array<{ version_number: number; reissue_reason: string | null }>;
       }).versions.map(version => [version.version_number, version.reissue_reason])).toEqual([
-        [2, 'Corrected certificate details'],
+        [4, 'Corrected certificate details'],
+        [3, 'Corrected certificate details'],
+        [2, null],
         [1, null],
       ]);
 
@@ -249,7 +405,7 @@ describe('certificate requests', () => {
         snapshot: { tables: { certificates: unknown[]; nfcTags: unknown[] } };
       };
       expect(backup.snapshot.tables.certificates).toHaveLength(1);
-      expect(backup.snapshot.tables.nfcTags).toHaveLength(2);
+      expect(backup.snapshot.tables.nfcTags).toHaveLength(3);
       expect(backup.objects.length).toBeGreaterThanOrEqual(3);
       const firstObject = await worker.fetch(new Request(
         `https://certificates.test/api/admin/backup/file?key=${encodeURIComponent(backup.objects[0].key)}`,

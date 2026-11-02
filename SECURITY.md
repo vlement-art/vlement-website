@@ -1,7 +1,9 @@
 # Security
 
-This is a static site: no server, no database, no user accounts, no
-server-side secrets. The overwhelming majority of typical web-app
+Public pages are static: there is no application server, runtime database, or
+visitor account system. The noindex `/admin` editor uses GitHub OAuth to let
+authorized editors write artwork and settings files directly to the
+repository. The overwhelming majority of typical web-app
 vulnerability classes (SQL injection, server-side auth bypass, session
 hijacking, leaked API keys) don't apply because there is no server-side code
 to exploit. What follows covers what *does* apply.

@@ -1,12 +1,14 @@
 ---
 title: Slippery Spring
 year: 2026
+width: 3456
+height: 5184
 medium: Hahnemühle Photo Rag Giclée
 dimensions: 42 × 30 cm
 category: Print
 collection: Luz
 summary: A seasonal exploration capturing the delicate transition of spring, its ephemeral beauty and subtle complexities
-image: /images/artwork/slippery-spring.jpg
+image: /images/artwork/slippery-spring.webp
 thumbnail: /images/thumbnails/slippery-spring.webp
 altText: Flower artwork titled Slippery Spring
 featured: true

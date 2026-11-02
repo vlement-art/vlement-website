@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Artwork certificate verification | Vlement</title>
+  <style>
+    :root { color-scheme: light; font-family: Georgia, "Times New Roman", serif; color: #24231f; background: #f8f6f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 24px; }
+    main { width: min(100%, 680px); background: #fff; padding: clamp(24px, 6vw, 56px); border: 1px solid #e8e4dc; }
+    .eyebrow { font: 12px/1.5 Arial, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #69665f; }
+    h1 { font-size: clamp(30px, 6vw, 44px); font-weight: 400; margin: 16px 0; }
+    #result { margin-top: 28px; }
+    .status { display: inline-block; font: 13px/1.4 Arial, sans-serif; padding: 7px 11px; border: 1px solid currentColor; }
+    .valid { color: #315a3b; }
+    .revoked, .error { color: #8b332c; }
+    .pending { color: #75612e; }
+    dl { display: grid; grid-template-columns: minmax(110px, 1fr) 2fr; gap: 12px 20px; margin: 24px 0; }
+    dt { color: #69665f; }
+    dd { margin: 0; }
+    a { color: inherit; text-underline-offset: .2em; }
+    .artwork { display: block; width: auto; max-width: 100%; max-height: 45vh; object-fit: contain; margin: 24px auto; }
+    @media (max-width: 480px) { dl { grid-template-columns: 1fr; gap: 4px; } dd { margin-bottom: 12px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Vlement J Rodrigues · Certificate records</p>
+    <h1>Artwork certificate</h1>
+    <div id="result" aria-live="polite"><p>Checking this certificate…</p></div>
+  </main>
+  <script src="/admin/certificates-config.js"></script>
+  <script>
+    const result = document.getElementById('result');
+    const token = new URLSearchParams(location.search).get('t');
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+
+    async function verify() {
+      if (!token) {
+        result.innerHTML = '<p class="status error">No certificate code was provided.</p>';
+        return;
+      }
+      if (!window.CERTIFICATES_API_URL) {
+        result.innerHTML = '<p class="status error">The verification service is not configured.</p>';
+        return;
+      }
+      try {
+        const response = await fetch(
+          `${window.CERTIFICATES_API_URL}/api/verify?t=${encodeURIComponent(token)}`,
+          { cache: 'no-store' }
+        );
+        const data = await response.json();
+        if (data.status === 'valid') {
+          const artwork = data.artwork || {};
+          const details = [
+            ['Certificate number', data.certificateNumber],
+            ['Artist', data.artist],
+            ['Artwork', artwork.title],
+            ['Year', artwork.year],
+            ['Medium', artwork.medium],
+            ['Dimensions', artwork.dimensions],
+            ['Edition', artwork.editionNumber && artwork.editionSize
+              ? `${artwork.editionNumber} of ${artwork.editionSize}`
+              : artwork.editionType === 'open' ? 'Open edition' : 'Original'],
+            ['Print date', artwork.printDate],
+            ['Signed', artwork.signed ? 'Yes' : null]
+          ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+          result.innerHTML = `
+            <p class="status valid">Certificate valid</p>
+            <dl>${details.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('')}</dl>
+            ${artwork.image ? `<img class="artwork" src="${escapeHtml(artwork.image)}" alt="${escapeHtml(artwork.title || 'Certified artwork')}">` : ''}
+            ${artwork.url ? `<p><a href="${escapeHtml(artwork.url)}">View artwork page</a></p>` : ''}
+            ${data.pdf ? `<p><a href="${escapeHtml(data.pdf)}">Download certificate PDF</a></p>` : ''}
+          `;
+        } else if (data.status === 'pending') {
+          result.innerHTML = `<p class="status pending">Certificate pending</p><p>${escapeHtml(data.certificateNumber || '')} is still being prepared and is not yet a valid certificate.</p>`;
+        } else if (data.status === 'revoked') {
+          result.innerHTML = `<p class="status revoked">Certificate revoked</p><p>${escapeHtml(data.certificateNumber || '')} is no longer valid.</p>`;
+        } else {
+          result.innerHTML = '<p class="status error">Certificate not found.</p>';
+        }
+      } catch {
+        result.innerHTML = '<p class="status error">The certificate could not be checked. Please try again later.</p>';
+      }
+    }
+
+    verify();
+  </script>
+</body>
+</html>

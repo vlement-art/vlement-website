@@ -1,15 +1,61 @@
-/* Collections manager for vlement.com/admin
-   Load AFTER the main admin script:
-   Stores the list in src/data/collections.json (created on first change). */
+/* Taxonomy options for vlement.com/admin are stored alongside the artwork records. */
 const COLLECTIONS_PATH = 'src/data/collections.json';
+const CATEGORIES_PATH = 'src/data/categories.json';
 let collections = [];
+let categories = [];
+let taxonomyLoadPromise = null;
 
-async function loadCollections() {
-  const f = await ghGetFile(COLLECTIONS_PATH);
-  collections = f
-    ? JSON.parse(base64ToUtf8(f.content))
-    : COLLECTION_OPTIONS.map(n => ({ name: n, slug: slugify(n) })); // seed from current list
+function normalizedTaxonomy(items, defaults, recordValues) {
+  const result = [];
+  const seen = new Set();
+  for (const item of [...items, ...defaults, ...recordValues]) {
+    const name = typeof item === 'string' ? item.trim() : String(item?.name || '').trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    result.push({ name, slug: slugify(name) });
+  }
+  return result;
+}
+
+function parseTaxonomyFile(file, path) {
+  if (!file) return [];
+  const parsed = JSON.parse(base64ToUtf8(file.content));
+  if (!Array.isArray(parsed) || parsed.some(item => typeof item?.name !== 'string')) {
+    throw new Error(`${path} must contain a JSON array of named taxonomy values.`);
+  }
+  return parsed;
+}
+
+async function ensureTaxonomiesLoaded() {
+  if (!taxonomyLoadPromise) {
+    taxonomyLoadPromise = (async () => {
+      const [collectionsFile, categoriesFile] = await Promise.all([
+        ghGetFile(COLLECTIONS_PATH),
+        ghGetFile(CATEGORIES_PATH)
+      ]);
+      collections = normalizedTaxonomy(
+        parseTaxonomyFile(collectionsFile, COLLECTIONS_PATH),
+        COLLECTION_OPTIONS,
+        entries.map(entry => entry.data.collection)
+      );
+      categories = normalizedTaxonomy(
+        parseTaxonomyFile(categoriesFile, CATEGORIES_PATH),
+        CATEGORY_OPTIONS,
+        entries.map(entry => entry.data.category)
+      );
+      syncTaxonomyOptions();
+    })().catch(err => {
+      taxonomyLoadPromise = null;
+      throw err;
+    });
+  }
+  return taxonomyLoadPromise;
+}
+
+function syncTaxonomyOptions() {
   syncCollectionOptions();
+  CATEGORY_OPTIONS.splice(0, CATEGORY_OPTIONS.length, ...categories.map(c => c.name));
 }
 
 // Keeps the artwork editor's Collection dropdown in step with the list
@@ -19,11 +65,45 @@ function syncCollectionOptions() {
 
 async function saveCollections(message) {
   await ghPutFileSafe(COLLECTIONS_PATH, utf8ToBase64(JSON.stringify(collections, null, 2) + '\n'), message);
-  syncCollectionOptions();
+  syncTaxonomyOptions();
 }
 
 const collectionUsage = name => entries.filter(e => e.data.collection === name).length;
 const collectionExists = name => collections.some(c => c.name.toLowerCase() === name.toLowerCase());
+const categoryExists = name => categories.some(c => c.name.toLowerCase() === name.toLowerCase());
+
+async function createTaxonomyFromEditor(type) {
+  await ensureTaxonomiesLoaded();
+  const isCollection = type === 'collection';
+  const label = isCollection ? 'collection' : 'category';
+  const name = prompt(`New ${label} name`);
+  if (!name || !name.trim()) return;
+  const normalizedName = name.trim();
+  const list = isCollection ? collections : categories;
+  const exists = isCollection ? collectionExists(normalizedName) : categoryExists(normalizedName);
+  const select = document.getElementById(`f-${type}`);
+  if (exists) {
+    const existing = list.find(item => item.name.toLowerCase() === normalizedName.toLowerCase());
+    if (select) select.value = existing.name;
+    showBanner(`"${existing.name}" already exists and has been selected.`, 'info');
+    return;
+  }
+
+  const updated = [...list, { name: normalizedName, slug: slugify(normalizedName) }];
+  const path = isCollection ? COLLECTIONS_PATH : CATEGORIES_PATH;
+  await ghPutFileSafe(path, utf8ToBase64(JSON.stringify(updated, null, 2) + '\n'), `Add ${label}: ${normalizedName}`);
+  if (isCollection) collections = updated;
+  else categories = updated;
+  syncTaxonomyOptions();
+  if (select) {
+    const option = document.createElement('option');
+    option.value = normalizedName;
+    option.textContent = normalizedName;
+    select.appendChild(option);
+    select.value = normalizedName;
+  }
+  showBanner(`Added ${label} "${normalizedName}".`, 'info');
+}
 
 function openCollections() {
   const rows = collections.map((c, i) => `
@@ -116,12 +196,9 @@ function initCollections() {
   btn.className = 'btn';
   btn.id = 'collections-btn';
   btn.textContent = 'Collections';
-  btn.onclick = openCollections;
+  btn.onclick = () => ensureTaxonomiesLoaded()
+    .then(openCollections)
+    .catch(err => showBanner('Could not load collections: ' + err.message, 'error'));
   document.getElementById('new-entry-btn').before(btn);
-  loadCollections().catch(err => showBanner('Could not load collections: ' + err.message, 'error'));
+  ensureTaxonomiesLoaded().catch(err => showBanner('Could not load categories and collections: ' + err.message, 'error'));
 }
-
-// Run after sign-in, and straight away if already signed in
-const _showApp = showApp;
-showApp = function () { _showApp(); initCollections(); };
-if (!document.getElementById('app-screen').hidden) initCollections();

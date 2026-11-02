@@ -1,9 +1,11 @@
 # Vlement J. Rodrigues — artwork portfolio
 
-A static, no-database, no-secrets artwork portfolio site built with
-[Astro](https://astro.build). Every page is pre-rendered to plain HTML at
-build time; the only JavaScript that ships is small, optional, progressive
-enhancement (theme toggle, gallery filtering, lightbox, mobile nav).
+A static artwork portfolio built with [Astro](https://astro.build). Public
+pages are pre-rendered to plain HTML at build time. The `/admin` interface
+uses GitHub as its publishing store for artwork Markdown and small JSON
+settings files. A separate Cloudflare Worker uses D1 and private R2 storage
+for digital artwork certificates; it does not change the public site's static
+hosting or the GitHub-backed artwork publishing flow.
 
 ## Why Astro
 
@@ -27,6 +29,7 @@ artwork-site/
 │   │   └── artist/           portrait + default social-share image
 │   ├── documents/            put cv.pdf here if you use the CV link (not included)
 │   ├── favicon.svg
+│   ├── admin/                GitHub-backed artwork editor and Excel export
 │   ├── site.webmanifest
 │   ├── robots.txt
 │   ├── CNAME                 custom domain — see "Custom domain" below
@@ -37,10 +40,15 @@ artwork-site/
 │   │   ├── config.ts          the artwork schema (see "Adding artwork")
 │   │   └── artworks/*.md      one Markdown file per artwork — EDIT THESE
 │   ├── data/site.ts           artist name, email, socials — EDIT THIS FIRST
+│   ├── data/homepage.json     selected homepage hero artwork and image field
+│   ├── data/collections.json  artwork collection names
+│   ├── data/categories.json   artwork category names
 │   ├── layouts/BaseLayout.astro
 │   ├── pages/                 index, work/, about, contact, privacy, 404
 │   └── styles/global.css
 ├── .github/workflows/deploy.yml   GitHub Pages CI/CD
+├── shared/certificate-config.json shared certificate wording and type rules
+├── workers/certificates/          Cloudflare Worker, D1 schema, and tests
 ├── astro.config.mjs
 ├── .env.example
 ├── SECURITY.md
@@ -49,7 +57,7 @@ artwork-site/
 
 ## Run it locally
 
-Requires Node.js 18.17+ (Node 20 recommended — matches the CI workflow).
+Requires Node.js 22 or later (matches the site build and Worker tooling).
 
 ```bash
 npm install
@@ -90,6 +98,7 @@ Every artwork is one Markdown file in `src/content/artworks/`. To add one:
    |---|---|---|
    | `title` | string | |
    | `year` | number | |
+   | `width` / `height` | number | artwork image pixel dimensions, used for uncropped sizing |
    | `medium` | string | e.g. "Oil on canvas" |
    | `dimensions` | string | e.g. "60 × 80 cm" |
    | `category` | string | used by the gallery category filter |
@@ -98,9 +107,14 @@ Every artwork is one Markdown file in `src/content/artworks/`. To add one:
    | `image` | string | path under `/public`, e.g. `/images/artwork/blue-hour.webp` |
    | `thumbnail` | string | path under `/public`, e.g. `/images/thumbnails/blue-hour.webp` |
    | `altText` | string | describes the artwork for screen readers — be specific |
-   | `featured` | boolean | shows on the home page (optional, default `false`) |
+   | `featured` | boolean | shows in the home page's selected works gallery (optional, default `false`) |
    | `available` | boolean | shows "Available"/"Sold" badge (optional, default `true`) |
-   | `price` | string | optional — omit the field entirely to hide the price |
+   | `price` | string or number | optional — omit the field entirely to hide the price |
+   | `editionType` | `original`, `limited`, or `open` | optional certificate metadata |
+   | `editionSize` | number | optional; required when the artwork is a limited edition |
+   | `support` | string | optional support detail, such as canvas panel |
+   | `printDate` | string | optional print date |
+   | `signed` | boolean | optional signature metadata |
    | `displayOrder` | number | lower numbers appear first (optional, default `0`) |
 
 3. Write the full description as the Markdown body, below the `---`.
@@ -110,9 +124,22 @@ Every artwork is one Markdown file in `src/content/artworks/`. To add one:
    typo, wrong type), `npm run dev` / `npm run build` will fail with a clear
    error naming the exact field and file.
 
-There is **no admin panel or database** — this is intentional, so the whole
-site can be a plain static export with no attack surface beyond serving
-files.
+## Admin panel and artwork backups
+
+Sign in at `/admin` with the configured GitHub OAuth flow to edit artworks.
+Saving updates the Markdown record in `src/content/artworks/`; homepage hero
+selection and category/collection choices are stored in `src/data/` JSON
+files. The normal site build then renders those same records into the public
+artwork pages and homepage.
+
+Use **Export Excel (.xlsx)** in the admin panel to download a workbook of all
+artwork records and metadata. Thumbnail previews are embedded when the
+browser can read them; full-size artwork files are not embedded, so back up
+the image files from the repository paths listed in the workbook as well.
+The former generated SQLite export is no longer used or stored. The separate
+certificate service has its own private D1/R2 data; its admin ZIP backup and
+local/deployment instructions are documented in
+[`workers/certificates/README.md`](workers/certificates/README.md).
 
 ## Images
 

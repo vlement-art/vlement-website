@@ -34,6 +34,12 @@ metadata and paths, with thumbnails embedded where browser access allows.
 Back up the artwork image files separately from the repository paths listed in
 the workbook.
 
+Use **Back up everything** to start the encrypted repository, certificate D1,
+and configured R2 backup workflow. The button requires the workflow on `main`
+and the GitHub Actions secrets described in [`BACKUP.md`](BACKUP.md). Backup
+artifacts are retained for 30 days; download and store a verified copy outside
+GitHub and Cloudflare.
+
 ## Local development
 
 Requires Node.js 22 or later.

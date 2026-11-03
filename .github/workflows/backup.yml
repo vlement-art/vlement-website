@@ -1,0 +1,212 @@
+name: Encrypted repository backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 1 * *'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out full repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mask backup credentials
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT R2_BUCKET BACKUP_PASSPHRASE; do
+            value="${!name:-}"
+            if [[ -n "$value" ]]; then
+              echo "::add-mask::$value"
+            fi
+          done
+          if [[ -z "${BACKUP_PASSPHRASE:-}" ]]; then
+            echo "::error::Set the BACKUP_PASSPHRASE GitHub Actions secret before running this workflow."
+            exit 1
+          fi
+
+      - name: Discover configured production resources
+        id: resources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          text = Path("workers/certificates/wrangler.jsonc").read_text()
+          text = re.sub(r",(\s*[}\]])", r"\1", text)
+          config = json.loads(text)
+          production = config.get("env", {}).get("production", {})
+          d1 = next(
+              (item.get("database_name", "") for item in production.get("d1_databases", [])
+               if item.get("binding") == "DB"),
+              "",
+          )
+          r2 = next(
+              (item.get("bucket_name", "") for item in production.get("r2_buckets", [])
+               if item.get("binding") == "CERTIFICATE_FILES"),
+              "",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"d1_database_name={d1}\n")
+              output.write(f"r2_configured={'true' if r2 else 'false'}\n")
+              output.write(f"r2_bucket_name={r2}\n")
+          print(f"D1 configured: {'yes' if d1 else 'no'}")
+          print(f"Production R2 bucket configured: {'yes' if r2 else 'no'}")
+          PY
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Prepare repository bundle
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          backup_dir="$RUNNER_TEMP/vlement-backup"
+          mkdir -p "$backup_dir"
+          date_utc="$(date -u +%F)"
+          git bundle create "$backup_dir/repo.bundle" --all
+          git bundle verify "$backup_dir/repo.bundle"
+          echo "Repository bundle created at commit $(git rev-parse HEAD)."
+          echo "directory=$backup_dir" >> "$GITHUB_OUTPUT"
+          echo "date=$date_utc" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Export production D1 database (read-only)
+        shell: bash
+        env:
+          D1_DATABASE_NAME: ${{ steps.resources.outputs.d1_database_name }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BACKUP_DIR: ${{ steps.prepare.outputs.directory }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$D1_DATABASE_NAME" ]]; then
+            echo "D1 backup skipped: no production D1 database is configured."
+          elif [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+            echo "D1 backup skipped: CLOUDFLARE_API_TOKEN and/or CLOUDFLARE_ACCOUNT_ID is not configured."
+          else
+            npx wrangler d1 export "$D1_DATABASE_NAME" --remote --output "$BACKUP_DIR/d1.sql" --skip-confirmation --config workers/certificates/wrangler.jsonc --env production
+            if [[ ! -s "$BACKUP_DIR/d1.sql" ]] || ! grep -Eiq 'CREATE[[:space:]]+TABLE' "$BACKUP_DIR/d1.sql"; then
+              echo "::error::D1 export is empty or contains no CREATE TABLE statements."
+              exit 1
+            fi
+            echo "D1 export verified as non-empty and containing table definitions."
+            if ! npx wrangler d1 time-travel info "$D1_DATABASE_NAME" --config workers/certificates/wrangler.jsonc --env production --json; then
+              echo "::warning::Could not retrieve D1 Time Travel bookmark information."
+            fi
+          fi
+
+      - name: Copy configured production R2 bucket (read-only)
+        shell: bash
+        env:
+          R2_CONFIGURED: ${{ steps.resources.outputs.r2_configured }}
+          R2_CONFIGURED_BUCKET: ${{ steps.resources.outputs.r2_bucket_name }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          BACKUP_DIR: ${{ steps.prepare.outputs.directory }}
+        run: |
+          set -euo pipefail
+          if [[ "$R2_CONFIGURED" != "true" ]]; then
+            echo "R2 backup skipped: no production R2 bucket is configured."
+          elif [[ -z "${R2_ACCESS_KEY_ID:-}" || -z "${R2_SECRET_ACCESS_KEY:-}" || -z "${R2_ENDPOINT:-}" || -z "${R2_BUCKET:-}" ]]; then
+            echo "R2 backup skipped: one or more R2_* GitHub Actions secrets are missing."
+          elif [[ "$R2_BUCKET" != "$R2_CONFIGURED_BUCKET" ]]; then
+            echo "::error::R2_BUCKET does not match the production bucket configured for the certificate Worker."
+            exit 1
+          else
+            sudo apt-get update
+            sudo apt-get install --yes rclone
+            mkdir -p "$BACKUP_DIR/r2-files"
+            export RCLONE_CONFIG_R2_TYPE=s3
+            export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+            export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+            export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+            export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+            export RCLONE_CONFIG_R2_ENV_AUTH=false
+            rclone sync "r2:$R2_BUCKET" "$BACKUP_DIR/r2-files" --fast-list --transfers 4 --checkers 8 --log-level INFO
+            echo "R2 bucket copy completed."
+          fi
+
+      - name: Verify backup and write manifest
+        shell: bash
+        env:
+          BACKUP_DIR: ${{ steps.prepare.outputs.directory }}
+          BACKUP_DATE: ${{ steps.prepare.outputs.date }}
+          GIT_COMMIT: ${{ steps.prepare.outputs.commit }}
+        run: |
+          python3 scripts/create-backup-manifest.py "$BACKUP_DIR" "$BACKUP_DATE" "$GIT_COMMIT"
+          python3 scripts/create-backup-manifest.py --verify "$BACKUP_DIR"
+
+      - name: Package and encrypt backup
+        id: package
+        shell: bash
+        env:
+          BACKUP_DIR: ${{ steps.prepare.outputs.directory }}
+          BACKUP_DATE: ${{ steps.prepare.outputs.date }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          archive="$GITHUB_WORKSPACE/vlement-backup-$BACKUP_DATE.zip"
+          encrypted="$archive.gpg"
+          checksum="$archive.sha256"
+          encrypted_checksum="$checksum.gpg"
+          passphrase_file="$RUNNER_TEMP/backup-passphrase"
+
+          chmod 700 "$RUNNER_TEMP"
+          umask 077
+          printf '%s' "$BACKUP_PASSPHRASE" > "$passphrase_file"
+          (cd "$BACKUP_DIR" && zip -qr "$archive" .)
+          unzip -t "$archive"
+          sha256sum "$archive" > "$checksum"
+
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$passphrase_file" --symmetric --cipher-algo AES256 --output "$encrypted" "$archive"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$passphrase_file" --symmetric --cipher-algo AES256 --output "$encrypted_checksum" "$checksum"
+
+          rm -f "$passphrase_file" "$archive" "$checksum"
+          rm -rf "$BACKUP_DIR"
+          encrypted_size="$(stat -c '%s' "$encrypted")"
+          checksum_size="$(stat -c '%s' "$encrypted_checksum")"
+          echo "Encrypted artifact size: $((encrypted_size + checksum_size)) bytes."
+          if (( encrypted_size + checksum_size > 400 * 1024 * 1024 )); then
+            echo "::warning::Encrypted backup exceeds 400 MB; review the repository's free artifact storage quota."
+          fi
+          echo "encrypted_archive=$encrypted" >> "$GITHUB_OUTPUT"
+          echo "encrypted_checksum=$encrypted_checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlement-backup-${{ steps.prepare.outputs.date }}
+          path: |
+            ${{ steps.package.outputs.encrypted_archive }}
+            ${{ steps.package.outputs.encrypted_checksum }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

@@ -687,6 +687,9 @@ function openEditor(entry) {
         <div class="preview" id="preview-landscape-download">${d.landscapeDownload ? `<img src="${d.landscapeDownload}">` : '<span>none</span>'}</div>
         <input type="file" id="f-landscape-download" accept="image/*">
       </div>
+    </div>
+
+    <div class="field">
       <label for="f-heroImage">Hero picture</label>
       <select id="f-heroImage">
         <option value="" ${selectedHeroField ? 'disabled' : ''}>Not the homepage hero</option>
@@ -799,6 +802,7 @@ function openEditor(entry) {
     if (pendingLandscapeDownloadFile) {
       document.getElementById('preview-landscape-download').innerHTML = `<img src="${URL.createObjectURL(pendingLandscapeDownloadFile)}">`;
     }
+  });
   document.getElementById('add-category-btn').addEventListener('click', () => {
     createTaxonomyFromEditor('category').catch(err => showBanner(err.message, 'error'));
   });
@@ -911,6 +915,13 @@ async function saveEntry() {
       throw new Error('Enter a valid limited-edition size.');
     }
     const body = document.getElementById('f-body').value;
+    const heroImageField = document.getElementById('f-heroImage').value;
+    if (!(pendingImageFile || data.image) || !(pendingThumbFile || data.thumbnail)) {
+      throw new Error('Upload both a full-size image and a thumbnail before saving.');
+    }
+    if (!heroImageField && homepageSettings.heroSlug === slug) {
+      throw new Error('Select a full-size image or thumbnail to keep the current homepage hero.');
+    }
 
     // Upload full image if a new one was chosen
     if (pendingImageFile) {
@@ -941,12 +952,6 @@ async function saveEntry() {
       const b64 = await fileToBase64(file);
       await ghPutFileSafe(downloadPath, b64, `Upload ${orientation} download for ${title}`);
       data[`${orientation}Download`] = `${DOWNLOAD_PUBLIC_PREFIX}/${slug}-${orientation}.${ext}`;
-    const heroImageField = document.getElementById('f-heroImage').value;
-    if (!data.image || !data.thumbnail) {
-      throw new Error('Upload both a full-size image and a thumbnail before saving.');
-    }
-    if (!heroImageField && homepageSettings.heroSlug === slug) {
-      throw new Error('Select a full-size image or thumbnail to keep the current homepage hero.');
     }
 
     // Clean undefined keys

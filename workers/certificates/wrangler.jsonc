@@ -3,7 +3,7 @@
   "name": "artwork-certificates",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-29",
-  "workers_dev": false,
+  "workers_dev": true,
   "env": {
     "staging": {
       "name": "artwork-certificates-staging",

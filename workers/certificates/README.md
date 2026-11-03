@@ -88,8 +88,10 @@ deploy it unchanged. Before deploying:
    verification against staging resources.
 5. Add the public Worker origin (for example
    `https://vlement-certificates.<account>.workers.dev`) as the repository
-   Actions variable `PUBLIC_CERTIFICATES_API_URL`. It is public configuration,
-   not a credential; never put tokens or secrets in this variable.
+   Actions variable `PUBLIC_CERTIFICATES_API_URL`. Ensure the Worker's
+   `workers.dev` route is enabled when using this hostname. It is public
+   configuration, not a credential; never put tokens or secrets in this
+   variable.
 6. Only switch the public site to the production Worker after the staging
    checks and a private backup have been reviewed.
 

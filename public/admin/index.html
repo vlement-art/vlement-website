@@ -69,6 +69,7 @@
     text-align: center;
   }
   #login-screen p { color: var(--muted); max-width: 360px; }
+  #login-status { color: var(--danger); font-size: 13px; min-height: 1.25em; }
 
   .grid {
     display: grid;
@@ -228,48 +229,105 @@ const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 let token = sessionStorage.getItem('gh_token') || null;
 let entries = []; // { path, sha, slug, data:{...}, body:"" }
 let homepageSettings = { heroSlug: null, heroImageField: null };
+let loginAttemptCleanup = null;
 
 /* ---------------------------------------------------------------------
    AUTH — reuses the existing Sveltia OAuth worker/callback
 --------------------------------------------------------------------- */
 function login() {
+  if (loginAttemptCleanup) return;
+
   const width = 600, height = 700;
   const left = window.screenX + (window.outerWidth - width) / 2;
   const top = window.screenY + (window.outerHeight - height) / 2;
-  const popup = window.open(
-    `${AUTH_WORKER}/auth?provider=github&site_id=${location.hostname}&scope=repo`,
-    'github-oauth',
-    `width=${width},height=${height},left=${left},top=${top}`
-  );
+  const loginButton = document.getElementById('login-btn');
+  const loginStatus = document.getElementById('login-status');
+  const authOrigin = new URL(AUTH_WORKER).origin;
+  let popup = null;
+  let closeCheck = null;
+  let timeout = null;
+
+  const cleanup = (message = '') => {
+    window.removeEventListener('message', handleMessage);
+    if (closeCheck) clearInterval(closeCheck);
+    if (timeout) clearTimeout(timeout);
+    if (popup && !popup.closed) popup.close();
+    loginAttemptCleanup = null;
+    loginButton.disabled = false;
+    loginButton.textContent = 'Sign in with GitHub';
+    loginStatus.textContent = message;
+  };
+  loginAttemptCleanup = cleanup;
 
   function handleMessage(e) {
-    if (typeof e.data !== 'string') return;
+    if (e.origin !== authOrigin || e.source !== popup || typeof e.data !== 'string') return;
 
     if (e.data === 'authorizing:github') {
-      // Handshake: echo back to the popup to confirm trusted origin
-      e.source.postMessage('authorizing:github', e.origin);
+      popup.postMessage('authorizing:github', authOrigin);
       return;
     }
 
     if (e.data.startsWith('authorization:github:success:')) {
-      const payload = JSON.parse(e.data.slice('authorization:github:success:'.length));
+      let payload;
+      try {
+        payload = JSON.parse(e.data.slice('authorization:github:success:'.length));
+      } catch {
+        cleanup('Sign-in returned an invalid response. Please try again.');
+        return;
+      }
+      if (!payload || typeof payload.token !== 'string' || !payload.token) {
+        cleanup('GitHub did not return an access token. Please try again.');
+        return;
+      }
       token = payload.token;
       sessionStorage.setItem('gh_token', token);
-      window.removeEventListener('message', handleMessage);
-      popup && popup.close();
+      cleanup();
       showApp();
       return;
     }
 
     if (e.data.startsWith('authorization:github:error:')) {
-      const payload = JSON.parse(e.data.slice('authorization:github:error:'.length));
-      window.removeEventListener('message', handleMessage);
-      popup && popup.close();
-      document.getElementById('login-status').textContent = 'Sign-in failed: ' + (payload.error || 'unknown error');
+      let payload;
+      try {
+        payload = JSON.parse(e.data.slice('authorization:github:error:'.length));
+      } catch {
+        cleanup('GitHub sign-in failed. Please try again.');
+        return;
+      }
+      cleanup('Sign-in failed: ' + (payload?.error || 'unknown error'));
     }
   }
 
   window.addEventListener('message', handleMessage);
+  loginButton.disabled = true;
+  loginButton.textContent = 'Opening GitHub…';
+  loginStatus.textContent = 'Complete sign-in in the GitHub window.';
+  try {
+    const authUrl = new URL('/auth', AUTH_WORKER);
+    authUrl.searchParams.set('provider', 'github');
+    authUrl.searchParams.set('site_id', location.hostname);
+    authUrl.searchParams.set('scope', 'repo');
+    popup = window.open(
+      authUrl.href,
+      'github-oauth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+  } catch {
+    cleanup('Could not open GitHub sign-in. Please check your browser settings and try again.');
+    return;
+  }
+  if (!popup) {
+    cleanup('Your browser blocked the sign-in window. Allow pop-ups for vlement.com, then try again.');
+    return;
+  }
+
+  loginButton.textContent = 'Waiting for GitHub…';
+  closeCheck = setInterval(() => {
+    if (popup.closed) cleanup('The GitHub sign-in window closed before sign-in completed. Please try again.');
+  }, 500);
+  timeout = setTimeout(() => {
+    cleanup('GitHub sign-in timed out. If the sign-in window is still open, finish there and try again.');
+  }, 180000);
 }
 
 function logout() {

@@ -70,6 +70,7 @@
   }
   #login-screen p { color: var(--muted); max-width: 360px; }
   #login-status { color: var(--danger); font-size: 13px; min-height: 1.25em; }
+  #topbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
   .grid {
     display: grid;
@@ -165,6 +166,11 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   [hidden] { display: none !important; }
+  @media (max-width: 640px) {
+    header.topbar { align-items: flex-start; flex-direction: column; gap: 12px; }
+    #topbar-actions { justify-content: flex-start; width: 100%; }
+    #topbar-actions .btn { flex: 1 1 auto; justify-content: center; }
+  }
 </style>
 </head>
 <body>
@@ -519,10 +525,13 @@ function setListStatus(msg) {
   document.getElementById('list-status').textContent = msg;
 }
 
-function showBanner(msg, type = 'info') {
+function showBanner(msg, type = 'info', timeoutMs = 4000) {
   const area = document.getElementById('banner-area');
   area.innerHTML = `<div class="status-banner ${type}">${msg}</div>`;
-  if (type === 'info') setTimeout(() => { if (area.firstChild) area.innerHTML = ''; }, 4000);
+  const banner = area.firstChild;
+  if (type === 'info' && timeoutMs > 0) {
+    setTimeout(() => { if (area.firstChild === banner) area.innerHTML = ''; }, timeoutMs);
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -1025,6 +1034,7 @@ function showApp() {
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn" id="certificates-btn">Certificates</button>
     <button class="btn" id="admin-exhibitions-btn">Exhibitions</button>
+    <button class="btn" id="backup-everything-btn">Back up everything</button>
     <button class="btn" id="export-xlsx-btn">Export Excel (.xlsx)</button>
     <button class="btn" id="logout-btn">Sign out</button>
   `;
@@ -1058,6 +1068,7 @@ if (token) {
 </script>
 <script src="collections.js"></script>
 <script src="exhibitions.js"></script>
+<script src="backup.js"></script>
 <script src="certificates-config.js"></script>
 <script src="certificates.js"></script>
 </body>

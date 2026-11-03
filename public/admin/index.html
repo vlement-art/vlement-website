@@ -1,170 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<title>Artworks Admin — vlement</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<style>
-  :root {
-    --bg: #f7f6f3;
-    --panel: #ffffff;
-    --ink: #1c1a17;
-    --muted: #6b6459;
-    --line: #e4e0d9;
-    --accent: #b5482f;
-    --accent-ink: #ffffff;
-    --danger: #b02a2a;
-    --radius: 10px;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-  }
-  header.topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 24px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--line);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  header.topbar h1 { font-size: 18px; margin: 0; font-weight: 600; }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid var(--line);
-    background: var(--panel);
-    color: var(--ink);
-    padding: 8px 14px;
-    border-radius: var(--radius);
-    font-size: 14px;
-    cursor: pointer;
-    transition: background .15s;
-  }
-  .btn:hover { background: #f0eee9; }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  .btn.primary:hover { background: #9c3c26; }
-  .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-  .btn.danger:hover { background: #8f2222; }
-  .btn:disabled { opacity: .5; cursor: default; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Artworks Admin — vlement</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    :root {
+      --bg: #f7f6f3;
+      --panel: #ffffff;
+      --ink: #1c1a17;
+      --muted: #6b6459;
+      --line: #e4e0d9;
+      --accent: #b5482f;
+      --accent-ink: #ffffff;
+      --danger: #b02a2a;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    header.topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header.topbar h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn:hover { background: #f0eee9; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .btn.primary:hover { background: #9c3c26; }
+    .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .btn.danger:hover { background: #8f2222; }
+    .btn:disabled { opacity: .5; cursor: default; }
 
-  main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+    main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 
-  #login-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 70vh;
-    gap: 16px;
-    text-align: center;
-  }
-  #login-screen p { color: var(--muted); max-width: 360px; }
+    #login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 70vh;
+      gap: 16px;
+      text-align: center;
+    }
+    #login-screen p { color: var(--muted); max-width: 360px; }
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 16px;
-    margin-top: 20px;
-  }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  .card .thumb {
-    aspect-ratio: 1 / 1;
-    background: #eee repeating-conic-gradient(#e5e5e5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-  .card .thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .card .body { padding: 12px; display: flex; flex-direction: column; gap: 4px; flex: auto; }
-  .card .title { font-weight: 600; font-size: 14px; line-height: 1.3; }
-  .card .meta { font-size: 12px; color: var(--muted); }
-  .card .actions { display: flex; gap: 8px; padding: 0 12px 12px; }
-  .card .actions .btn { flex: 1; justify-content: center; padding: 6px 10px; font-size: 13px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card .thumb {
+      aspect-ratio: 1 / 1;
+      background: #eee repeating-conic-gradient(#e5e5e5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .card .body { padding: 12px; display: flex; flex-direction: column; gap: 4px; flex: auto; }
+    .card .title { font-weight: 600; font-size: 14px; line-height: 1.3; }
+    .card .meta { font-size: 12px; color: var(--muted); }
+    .card .actions { display: flex; gap: 8px; padding: 0 12px 12px; }
+    .card .actions .btn { flex: 1; justify-content: center; padding: 6px 10px; font-size: 13px; }
 
-  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
+    .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
 
-  /* Modal */
-  .overlay {
-    position: fixed; inset: 0; background: rgba(20,18,15,.45);
-    display: flex; align-items: flex-start; justify-content: center;
-    padding: 32px 16px; overflow-y: auto; z-index: 100;
-  }
-  .modal {
-    background: var(--panel);
-    border-radius: 14px;
-    width: 100%;
-    max-width: 640px;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .modal h2 { margin: 0 0 4px; font-size: 18px; }
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field label { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .field .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
-  .field input[type=text], .field input[type=number], .field select, .field textarea {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 9px 10px;
-    font-size: 14px;
-    font-family: inherit;
-    background: #fff;
-    color: var(--ink);
-  }
-  .field textarea { resize: vertical; min-height: 80px; }
-  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .checkbox-row { display: flex; align-items: center; gap: 8px; }
-  .checkbox-row label { font-size: 13px; font-weight: 600; }
+    .overlay {
+      position: fixed; inset: 0; background: rgba(20,18,15,.45);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 32px 16px; overflow-y: auto; z-index: 100;
+    }
+    .modal {
+      background: var(--panel);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 640px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal h2 { margin: 0 0 4px; font-size: 18px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .field .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+    .field input[type=text], .field input[type=number], .field select, .field textarea {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; }
+    .checkbox-row label { font-size: 13px; font-weight: 600; }
 
-  .image-field { display: flex; gap: 12px; align-items: center; }
-  .image-field .preview {
-    width: 72px; height: 72px; border-radius: 8px; overflow: hidden;
-    background: #eee repeating-conic-gradient(#e5e5e5 0% 25%, #fff 0% 50%) 50% / 12px 12px;
-    flex: none; display: flex; align-items: center; justify-content: center;
-  }
-  .image-field .preview img { width: 100%; height: 100%; object-fit: cover; }
-  .image-field .preview span { font-size: 10px; color: var(--muted); }
+    .image-field { display: flex; gap: 12px; align-items: center; }
+    .image-field .preview {
+      width: 72px; height: 72px; border-radius: 8px; overflow: hidden;
+      background: #eee repeating-conic-gradient(#e5e5e5 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+      flex: none; display: flex; align-items: center; justify-content: center;
+    }
+    .image-field .preview img { width: 100%; height: 100%; object-fit: cover; }
+    .image-field .preview span { font-size: 10px; color: var(--muted); }
 
-  .modal-footer {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line);
-  }
-  .modal-footer .right { display: flex; gap: 8px; }
+    .modal-footer {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line);
+    }
+    .modal-footer .right { display: flex; gap: 8px; }
 
-  .status-banner {
-    font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px;
-  }
-  .status-banner.error { background: #fbe7e5; color: var(--danger); }
-  .status-banner.info { background: #eef2f6; color: #33546b; }
+    .status-banner {
+      font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px;
+    }
+    .status-banner.error { background: #fbe7e5; color: var(--danger); }
+    .status-banner.info { background: #eef2f6; color: #33546b; }
 
-  .spinner {
-    width: 16px; height: 16px; border-radius: 50%;
-    border: 2px solid rgba(0,0,0,.15); border-top-color: var(--ink);
-    animation: spin .7s linear infinite; display: inline-block;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(0,0,0,.15); border-top-color: var(--ink);
+      animation: spin .7s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-  [hidden] { display: none !important; }
-</style>
+    [hidden] { display: none !important; }
+  </style>
 </head>
 <body>
 
@@ -236,11 +235,18 @@ function login() {
   const width = 600, height = 700;
   const left = window.screenX + (window.outerWidth - width) / 2;
   const top = window.screenY + (window.outerHeight - height) / 2;
+  const authUrl = `${AUTH_WORKER}/auth?provider=github&site_id=${location.hostname}&scope=repo`;
   const popup = window.open(
-    `${AUTH_WORKER}/auth?provider=github&site_id=${location.hostname}&scope=repo`,
+    authUrl,
     'github-oauth',
     `width=${width},height=${height},left=${left},top=${top}`
   );
+
+  if (!popup) {
+    document.getElementById('login-status').textContent = 'The GitHub sign-in popup was blocked. Please allow pop-ups and try again.';
+    window.location.assign(authUrl);
+    return;
+  }
 
   function handleMessage(e) {
     if (typeof e.data !== 'string') return;
@@ -323,11 +329,9 @@ async function ghPutFile(path, base64Content, message, sha) {
       ...(sha ? { sha } : {})
     })
   });
-  return res.json(); // { content: { sha, path, ... }, commit: {...} }
+  return res.json();
 }
 
-// Wraps ghPutFile: if GitHub reports the sha is stale (409 conflict), re-fetch the
-// file's current sha and retry once automatically instead of failing the save.
 async function ghPutFileSafe(path, base64Content, message) {
   const existing = await ghGetFile(path);
   try {
@@ -506,7 +510,7 @@ function renderGrid() {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 }
 
 /* ---------------------------------------------------------------------
@@ -519,7 +523,7 @@ let pendingPortraitDownloadFile = null;
 let pendingLandscapeDownloadFile = null;
 
 function openEditor(entry) {
-  currentEntry = entry; // null = new
+  currentEntry = entry;
   pendingImageFile = null;
   pendingThumbFile = null;
   pendingPortraitDownloadFile = null;
@@ -746,6 +750,7 @@ function openEditor(entry) {
     if (pendingLandscapeDownloadFile) {
       document.getElementById('preview-landscape-download').innerHTML = `<img src="${URL.createObjectURL(pendingLandscapeDownloadFile)}">`;
     }
+  });
   document.getElementById('add-category-btn').addEventListener('click', () => {
     createTaxonomyFromEditor('category').catch(err => showBanner(err.message, 'error'));
   });
@@ -859,7 +864,6 @@ async function saveEntry() {
     }
     const body = document.getElementById('f-body').value;
 
-    // Upload full image if a new one was chosen
     if (pendingImageFile) {
       const ext = extOf(pendingImageFile.name);
       const imgPath = `${IMAGE_DIR}/${slug}.${ext}`;
@@ -868,7 +872,6 @@ async function saveEntry() {
       data.image = `${IMAGE_PUBLIC_PREFIX}/${slug}.${ext}`;
     }
 
-    // Upload thumbnail if a new one was chosen
     if (pendingThumbFile) {
       const ext = extOf(pendingThumbFile.name);
       const thumbPath = `${THUMB_DIR}/${slug}.${ext}`;
@@ -877,7 +880,6 @@ async function saveEntry() {
       data.thumbnail = `${THUMB_PUBLIC_PREFIX}/${slug}.${ext}`;
     }
 
-    // Upload optional orientation-specific download files
     for (const [orientation, file] of [
       ['portrait', pendingPortraitDownloadFile],
       ['landscape', pendingLandscapeDownloadFile]
@@ -888,6 +890,8 @@ async function saveEntry() {
       const b64 = await fileToBase64(file);
       await ghPutFileSafe(downloadPath, b64, `Upload ${orientation} download for ${title}`);
       data[`${orientation}Download`] = `${DOWNLOAD_PUBLIC_PREFIX}/${slug}-${orientation}.${ext}`;
+    }
+
     const heroImageField = document.getElementById('f-heroImage').value;
     if (!data.image || !data.thumbnail) {
       throw new Error('Upload both a full-size image and a thumbnail before saving.');
@@ -896,7 +900,6 @@ async function saveEntry() {
       throw new Error('Select a full-size image or thumbnail to keep the current homepage hero.');
     }
 
-    // Clean undefined keys
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 
     const content = buildFrontmatter(data, body);
@@ -912,7 +915,6 @@ async function saveEntry() {
       await saveHomepageSettings(slug, heroImageField);
     }
 
-    // Update local state directly instead of re-fetching every entry from GitHub
     if (isNew) {
       entries.push({ path: mdPath, sha: newSha, slug, data, body });
     } else {
@@ -955,9 +957,6 @@ async function confirmDelete(entry) {
   }
 }
 
-/* ---------------------------------------------------------------------
-   EXCEL BACKUP EXPORT (implementation in export-excel.js)
---------------------------------------------------------------------- */
 /* ---------------------------------------------------------------------
    APP BOOTSTRAP
 --------------------------------------------------------------------- */

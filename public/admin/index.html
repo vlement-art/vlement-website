@@ -242,7 +242,6 @@ function login() {
   const top = window.screenY + (window.outerHeight - height) / 2;
   const loginButton = document.getElementById('login-btn');
   const loginStatus = document.getElementById('login-status');
-  const authOrigin = new URL(AUTH_WORKER).origin;
   let popup = null;
   let closeCheck = null;
   let timeout = null;
@@ -260,10 +259,10 @@ function login() {
   loginAttemptCleanup = cleanup;
 
   function handleMessage(e) {
-    if (e.origin !== authOrigin || e.source !== popup || typeof e.data !== 'string') return;
+    if (e.source !== popup || typeof e.data !== 'string') return;
 
     if (e.data === 'authorizing:github') {
-      popup.postMessage('authorizing:github', authOrigin);
+      e.source.postMessage('authorizing:github', e.origin);
       return;
     }
 
@@ -303,12 +302,8 @@ function login() {
   loginButton.textContent = 'Opening GitHub…';
   loginStatus.textContent = 'Complete sign-in in the GitHub window.';
   try {
-    const authUrl = new URL('/auth', AUTH_WORKER);
-    authUrl.searchParams.set('provider', 'github');
-    authUrl.searchParams.set('site_id', location.hostname);
-    authUrl.searchParams.set('scope', 'repo');
     popup = window.open(
-      authUrl.href,
+      `${AUTH_WORKER}/auth?provider=github&site_id=${location.hostname}&scope=repo`,
       'github-oauth',
       `width=${width},height=${height},left=${left},top=${top}`
     );

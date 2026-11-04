@@ -862,6 +862,34 @@ async function saveHomepageSettings(heroSlug, heroImageField) {
   homepageSettings = settings;
 }
 
+async function updateArtworkAvailability(slug, available, message) {
+  await ensureYamlLibrary();
+  const entry = entries.find(item => item.slug === slug);
+  if (!entry) throw new Error('Refresh the artwork list before changing its availability.');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const latest = await ghGetFile(entry.path);
+    if (!latest) throw new Error('The artwork file is missing from GitHub. Refresh the artwork list and try again.');
+    const parsed = parseFrontmatter(base64ToUtf8(latest.content));
+    const data = { ...parsed.data, available };
+    try {
+      const result = await ghPutFile(
+        entry.path,
+        utf8ToBase64(buildFrontmatter(data, parsed.body)),
+        message,
+        latest.sha
+      );
+      entry.data = data;
+      entry.body = parsed.body;
+      entry.sha = result?.content?.sha || latest.sha;
+      renderGrid();
+      return;
+    } catch (error) {
+      if (error.status !== 409 || attempt > 0) throw error;
+    }
+  }
+  throw new Error('The artwork changed while its availability was being updated. Refresh and try again.');
+}
+
 /* ---------------------------------------------------------------------
    SAVE
 --------------------------------------------------------------------- */
@@ -1034,6 +1062,7 @@ function showApp() {
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn" id="certificates-btn">Certificates</button>
     <button class="btn" id="admin-exhibitions-btn">Exhibitions</button>
+    <button class="btn" id="sales-btn">Sales</button>
     <button class="btn" id="backup-everything-btn">Back up everything</button>
     <button class="btn" id="export-xlsx-btn">Export Excel (.xlsx)</button>
     <button class="btn" id="logout-btn">Sign out</button>
@@ -1041,6 +1070,9 @@ function showApp() {
   document.getElementById('logout-btn').addEventListener('click', logout);
   document.getElementById('admin-exhibitions-btn').addEventListener('click', () => {
     window.VlementAdminExhibitions.open();
+  });
+  document.getElementById('sales-btn').addEventListener('click', () => {
+    window.VlementSales.open();
   });
   document.getElementById('export-xlsx-btn').addEventListener('click', window.exportArtworksExcel);
   loadEntries().then(() => {
@@ -1059,7 +1091,8 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 window.VlementAdmin = {
   getEntries: () => entries,
-  getToken: () => token
+  getToken: () => token,
+  updateArtworkAvailability
 };
 
 if (token) {
@@ -1071,5 +1104,6 @@ if (token) {
 <script src="backup.js"></script>
 <script src="certificates-config.js"></script>
 <script src="certificates.js"></script>
+<script src="sales.js"></script>
 </body>
 </html>

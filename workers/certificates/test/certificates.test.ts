@@ -88,7 +88,7 @@ describe('certificate requests', () => {
       new Request('https://certificates.test/api/admin/certificates'),
       env,
     );
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'Not authorized.' });
   });
 

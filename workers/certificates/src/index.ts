@@ -19,6 +19,17 @@ const identityCache = new Map<string, { expiresAt: number; allowed: boolean }>()
 const maxImageBytes = 8 * 1024 * 1024;
 const allowedTypes = new Set(Object.keys(certificateTypes));
 
+interface ArtworkForSale {
+  slug: string;
+  title: string;
+  category: string;
+  available: boolean;
+  editionType: string;
+  editionSize: number | null;
+  price: string;
+  soldEditionNumbers?: number[];
+}
+
 function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -120,6 +131,370 @@ function requiredText(value: unknown, field: string, maxLength = 500): string {
     throw new Error(`Enter a valid ${field}.`);
   }
   return value.trim();
+}
+
+function validateSaleRequest(input: unknown): {
+  artworkSlug: string;
+  itemType: CertificateType;
+  editionNumber: number | null;
+  buyerName: string;
+  buyerEmail: string | null;
+  saleDate: string;
+  price: number;
+  currency: string;
+  notes: string;
+} {
+  if (!input || typeof input !== 'object') throw new Error('Enter sale details.');
+  const body = input as Record<string, unknown>;
+  const artworkSlug = requiredText(body.artworkSlug, 'artwork', 120);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(artworkSlug)) throw new Error('Enter a valid artwork.');
+
+  if (typeof body.itemType !== 'string' || !allowedTypes.has(body.itemType)) {
+    throw new Error('Choose a valid item type.');
+  }
+  const itemType = body.itemType as CertificateType;
+  let editionNumber: number | null = null;
+  if (itemType === 'limited_edition') {
+    if (!Number.isInteger(body.editionNumber) || Number(body.editionNumber) < 1) {
+      throw new Error('Enter a valid limited-edition number.');
+    }
+    editionNumber = Number(body.editionNumber);
+  } else if (body.editionNumber !== undefined && body.editionNumber !== null && body.editionNumber !== '') {
+    throw new Error('An edition number is only valid for a limited edition.');
+  }
+
+  const buyerName = requiredText(body.buyerName, 'buyer name', 200);
+  const buyerEmail = body.buyerEmail ? requiredText(body.buyerEmail, 'buyer email', 254) : null;
+  if (buyerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+    throw new Error('Enter a valid buyer email.');
+  }
+  const saleDate = requiredText(body.saleDate, 'sale date', 10);
+  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(saleDate)
+    ? new Date(`${saleDate}T00:00:00.000Z`)
+    : null;
+  if (!parsedDate || Number(saleDate.slice(0, 4)) < 1900
+    || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== saleDate) {
+    throw new Error('Enter a valid sale date in YYYY-MM-DD format.');
+  }
+  const price = Number(body.price);
+  if (typeof body.price !== 'number' || !Number.isFinite(price) || price < 0) {
+    throw new Error('Enter a valid price.');
+  }
+  const currency = requiredText(body.currency || 'GBP', 'currency', 3).toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error('Enter a valid three-letter currency.');
+  if (body.notes !== undefined && body.notes !== null && typeof body.notes !== 'string') {
+    throw new Error('Enter valid sale notes.');
+  }
+  const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
+  if (notes.length > 1000) throw new Error('Notes must be 1000 characters or fewer.');
+
+  return { artworkSlug, itemType, editionNumber, buyerName, buyerEmail, saleDate, price, currency, notes };
+}
+
+function githubTokenFromRequest(request: Request): string {
+  const match = /^Bearer\s+(.+)$/i.exec(request.headers.get('Authorization') || '');
+  if (!match) throw new Error('Not authorized.');
+  return match[1];
+}
+
+async function githubContent(
+  request: Request,
+  env: Env,
+  path: string,
+): Promise<unknown> {
+  const response = await fetch(
+    `https://api.github.com/repos/${env.ARTWORK_REPOSITORY}/contents/${path}?ref=main`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${githubTokenFromRequest(request)}`,
+        'User-Agent': 'Vlement-Certificates',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      cache: 'no-store',
+    },
+  );
+  if (!response.ok) throw new Error('Could not read artwork details from GitHub.');
+  return response.json();
+}
+
+function isGitHubContentFile(value: unknown): value is { content: string; name?: string; type?: string } {
+  return typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && 'content' in value
+    && typeof value.content === 'string';
+}
+
+function parseArtworkFrontmatter(content: string): Record<string, string> {
+  const decoded = new TextDecoder().decode(
+    Uint8Array.from(atob(content.replace(/\s/g, '')), character => character.charCodeAt(0)),
+  );
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(decoded);
+  if (!match) throw new Error('Artwork metadata is missing its frontmatter.');
+  const values: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const field = /^([A-Za-z][A-Za-z0-9]*):\s*(.*)$/.exec(line);
+    if (!field) continue;
+    let value = field[2].trim();
+    if (value.startsWith('"') && value.endsWith('"')) {
+      try {
+        value = JSON.parse(value) as string;
+      } catch {
+        throw new Error('Artwork metadata contains an invalid quoted value.');
+      }
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1).replaceAll("''", "'");
+    }
+    values[field[1]] = value;
+  }
+  return values;
+}
+
+async function getArtworkForSale(
+  request: Request,
+  env: Env,
+  slug: string,
+): Promise<ArtworkForSale> {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error('Enter a valid artwork.');
+  const file = await githubContent(request, env, `src/content/artworks/${encodeURIComponent(slug)}.md`);
+  if (!isGitHubContentFile(file)) throw new Error('Artwork metadata is missing from GitHub.');
+  if (!file.content) throw new Error('Artwork metadata is missing from GitHub.');
+  const data = parseArtworkFrontmatter(file.content);
+  const editionSize = Number(data.editionSize || 0);
+  return {
+    slug,
+    title: data.title || slug,
+    category: data.category || '',
+    available: data.available !== 'false',
+    editionType: data.editionType || (data.category === 'Print' ? 'open' : 'original'),
+    editionSize: Number.isInteger(editionSize) && editionSize > 0 ? editionSize : null,
+    price: data.price || '',
+  };
+}
+
+async function listArtworksForSale(request: Request, env: Env): Promise<ArtworkForSale[]> {
+  const listing = await githubContent(request, env, 'src/content/artworks');
+  if (!Array.isArray(listing)) throw new Error('Could not list artwork files in GitHub.');
+  const files = listing.filter((file): file is { name: string; type: string } =>
+    typeof file === 'object' && file !== null
+    && 'type' in file && file.type === 'file'
+    && 'name' in file && typeof file.name === 'string'
+    && /^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/.test(file.name),
+  );
+  const artworks = await Promise.all(files.map(async file => {
+    const slug = file.name.slice(0, -3);
+    const content = await githubContent(request, env, `src/content/artworks/${encodeURIComponent(file.name)}`);
+    if (!isGitHubContentFile(content)) return null;
+    const data = parseArtworkFrontmatter(content.content);
+    const editionSize = Number(data.editionSize || 0);
+    const artwork: ArtworkForSale = {
+      slug,
+      title: data.title || slug,
+      category: data.category || '',
+      available: data.available !== 'false',
+      editionType: data.editionType || (data.category === 'Print' ? 'open' : 'original'),
+      editionSize: Number.isInteger(editionSize) && editionSize > 0 ? editionSize : null,
+      price: data.price || '',
+    };
+    return artwork;
+  }));
+  const activeSales = await env.DB.prepare(
+    `SELECT artwork_slug, item_type, edition_number
+       FROM sales WHERE status = 'active'`,
+  ).all<{ artwork_slug: string; item_type: CertificateType; edition_number: number | null }>();
+  const grouped = new Map<string, typeof activeSales.results>();
+  for (const sale of activeSales.results) {
+    const current = grouped.get(sale.artwork_slug) || [];
+    current.push(sale);
+    grouped.set(sale.artwork_slug, current);
+  }
+
+  return artworks.filter((artwork): artwork is ArtworkForSale => artwork !== null).map(artwork => {
+    const sold = grouped.get(String(artwork.slug)) || [];
+    const soldEditionNumbers = sold
+      .filter(sale => sale.item_type === 'limited_edition')
+      .map(sale => sale.edition_number)
+      .filter((number): number is number => number !== null);
+    const activeOriginal = sold.some(sale => sale.item_type === 'original');
+    const editionType = artwork.editionType;
+    const available = editionType === 'limited'
+      ? artwork.available && Boolean(artwork.editionSize) && soldEditionNumbers.length < Number(artwork.editionSize)
+      : editionType === 'open'
+        ? artwork.available
+        : artwork.available && !activeOriginal;
+    return { ...artwork, available, soldEditionNumbers };
+  });
+}
+
+async function enforceSalesRateLimit(env: Env): Promise<void> {
+  const result = await env.VERIFY_LIMITER.limit({
+    key: `sales-admin-${env.ALLOWED_GITHUB_USER_ID || 'unknown'}`,
+  });
+  if (!result.success) throw new Error('Sales requests are temporarily limited. Try again shortly.');
+}
+
+async function recordSale(request: Request, env: Env): Promise<Response> {
+  const body = parseJson(await request.text());
+  const sale = validateSaleRequest(body);
+  const artwork = await getArtworkForSale(request, env, sale.artworkSlug);
+  if (!artwork.available) throw new Error('This artwork is not currently available for sale.');
+  const expectedType = artwork.editionType === 'limited'
+    ? 'limited_edition'
+    : artwork.editionType === 'open'
+      ? 'open_edition'
+      : 'original';
+  if (sale.itemType !== expectedType) throw new Error('Choose the item type configured for this artwork.');
+  if (sale.itemType === 'limited_edition'
+    && (!artwork.editionSize || !sale.editionNumber || sale.editionNumber > Number(artwork.editionSize))) {
+    throw new Error('Enter an edition number within the artwork edition size.');
+  }
+
+  const now = new Date().toISOString();
+  const year = Number(sale.saleDate.slice(0, 4));
+  const prefix = certificateTypes[sale.itemType].prefix;
+  const id = crypto.randomUUID();
+  const auditId = crypto.randomUUID();
+  const matchingCertificate = sale.itemType === 'open_edition'
+    ? null
+    : await env.DB.prepare(
+      `SELECT c.id, c.certificate_number
+         FROM certificates c
+        WHERE c.artwork_slug = ? AND c.certificate_type = ? AND c.edition_number IS ?
+          AND c.status IN ('pending', 'valid')
+          AND NOT EXISTS (
+            SELECT 1 FROM sales s WHERE s.certificate_id = c.id OR s.sale_number = c.certificate_number
+          )
+        ORDER BY c.created_at, c.id LIMIT 1`,
+    ).bind(sale.artworkSlug, sale.itemType, sale.editionNumber).first<{
+      id: string;
+      certificate_number: string;
+    }>();
+  const statements = matchingCertificate ? [] : [
+    env.DB.prepare(
+      'INSERT OR IGNORE INTO counters (certificate_type, year, value) VALUES (?, ?, 0)',
+    ).bind(sale.itemType, year),
+    env.DB.prepare(
+      `UPDATE counters SET value = value + 1
+        WHERE certificate_type = ? AND year = ?`,
+    ).bind(sale.itemType, year),
+  ];
+  if (sale.itemType === 'open_edition') {
+    statements.push(
+      env.DB.prepare(
+        'INSERT OR IGNORE INTO open_edition_sales_counters (artwork_slug, value) VALUES (?, 0)',
+      ).bind(sale.artworkSlug),
+      env.DB.prepare(
+        'UPDATE open_edition_sales_counters SET value = value + 1 WHERE artwork_slug = ?',
+      ).bind(sale.artworkSlug),
+    );
+  }
+  statements.push(
+    env.DB.prepare(
+      `INSERT INTO sales
+        (id, artwork_slug, item_type, edition_number, open_edition_number, sale_number,
+         buyer_name, buyer_email, sale_date, price, currency, notes, status, cancelled_at,
+         certificate_id, created_at, created_by)
+       SELECT ?, ?, ?, ?, CASE WHEN ? = 'open_edition'
+                    THEN (SELECT value FROM open_edition_sales_counters WHERE artwork_slug = ?)
+                    ELSE NULL END,
+             COALESCE(
+               (SELECT certificate_number FROM certificates WHERE id = ?),
+               printf('VL-%s-%04d-%04d', ?, ?, counters.value)
+             ),
+             ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?
+        FROM counters
+        WHERE certificate_type = ? AND year = ?
+       RETURNING id, artwork_slug, item_type, edition_number, open_edition_number,
+                 sale_number, buyer_name, buyer_email, sale_date, price, currency,
+                 notes, status, cancelled_at, certificate_id, created_at, created_by`,
+    ).bind(
+      id, sale.artworkSlug, sale.itemType, sale.editionNumber,
+      sale.itemType, sale.artworkSlug,
+      matchingCertificate?.id || null,
+      prefix, year, sale.buyerName, sale.buyerEmail, sale.saleDate, sale.price,
+      sale.currency, sale.notes, matchingCertificate?.id || null, now, env.ALLOWED_GITHUB_USER_ID || '',
+      sale.itemType, year,
+    ),
+  );
+  const salesInsert = statements[statements.length - 1];
+  statements.push(
+    env.DB.prepare(
+      `INSERT INTO sales_audit_log (id, actor_id, action, sale_id, sale_number, occurred_at)
+       SELECT ?, ?, 'sale_recorded', id, sale_number, ? FROM sales WHERE id = ?`,
+    ).bind(auditId, env.ALLOWED_GITHUB_USER_ID || '', now, id),
+  );
+  const results = await env.DB.batch(statements);
+  if (results.some(result => !result.success)) throw new Error('Could not record the sale.');
+  const insertResult = results[statements.indexOf(salesInsert)];
+  const inserted = insertResult.results?.[0] as Record<string, unknown> | undefined;
+  if (!inserted) throw new Error('Could not load the recorded sale.');
+  let artworkAvailable = true;
+  if (sale.itemType === 'original') {
+    artworkAvailable = false;
+  } else if (sale.itemType === 'limited_edition') {
+    const active = await env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM sales
+        WHERE artwork_slug = ? AND item_type = 'limited_edition' AND status = 'active'`,
+    ).bind(sale.artworkSlug).first<{ count: number }>();
+    artworkAvailable = Number(active?.count || 0) < Number(artwork.editionSize);
+  } else {
+    artworkAvailable = Boolean(artwork.available);
+  }
+  return jsonResponse({ sale: inserted, artworkAvailable }, 201);
+}
+
+async function cancelSale(request: Request, env: Env): Promise<Response> {
+  const input = parseJson(await request.text());
+  if (!input || typeof input !== 'object') throw new Error('Enter a sale number to cancel.');
+  const saleNumber = requiredText((input as Record<string, unknown>).saleNumber, 'sale number', 40);
+  const existing = await env.DB.prepare(
+    `SELECT id, artwork_slug, item_type, status, certificate_id
+       FROM sales WHERE sale_number = ?`,
+  ).bind(saleNumber).first<{
+    id: string;
+    artwork_slug: string;
+    item_type: CertificateType;
+    status: 'active' | 'cancelled';
+    certificate_id: string | null;
+  }>();
+  if (!existing) return jsonResponse({ error: 'Sale not found.' }, 404);
+  if (existing.status === 'cancelled') {
+    return jsonResponse({
+      sale: { ...existing, sale_number: saleNumber },
+      alreadyCancelled: true,
+      certificateRequiresManualReview: Boolean(existing.certificate_id),
+      artworkAvailable: existing.item_type !== 'open_edition',
+    });
+  }
+  const now = new Date().toISOString();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE sales SET status = 'cancelled', cancelled_at = ?
+        WHERE id = ? AND status = 'active'`,
+    ).bind(now, existing.id),
+    env.DB.prepare(
+      `INSERT INTO sales_audit_log (id, actor_id, action, sale_id, sale_number, occurred_at, details_json)
+       SELECT ?, ?, 'sale_cancelled', id, sale_number, ?, ?
+         FROM sales WHERE id = ? AND status = 'cancelled' AND cancelled_at = ?`,
+    ).bind(
+      crypto.randomUUID(), env.ALLOWED_GITHUB_USER_ID || '', now,
+      JSON.stringify({ certificateRequiresManualReview: Boolean(existing.certificate_id) }),
+      existing.id, now,
+    ),
+  ]);
+  if (results.some(result => !result.success)) throw new Error('Could not cancel the sale.');
+  const sale = await env.DB.prepare(
+    `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
+            sale_number, buyer_name, buyer_email, sale_date, price, currency, notes,
+            status, cancelled_at, certificate_id, created_at, created_by
+       FROM sales WHERE id = ?`,
+  ).bind(existing.id).first<Record<string, unknown>>();
+  return jsonResponse({
+    sale,
+    certificateRequiresManualReview: Boolean(existing.certificate_id),
+    artworkAvailable: existing.item_type !== 'open_edition',
+  });
 }
 
 function validateIssueRequest(input: unknown): IssueRequest {
@@ -426,26 +801,46 @@ async function createPendingVersion(
         throw new Error('Could not replace the pending certificate preview.');
       }
     } else {
-      const counterInit = env.DB.prepare(
-        'INSERT OR IGNORE INTO counters (certificate_type, year, value) VALUES (?, ?, 0)',
-      ).bind(request.certificateType, year);
-      const counterIncrement = env.DB.prepare(
-        `UPDATE counters SET value = value + 1
-          WHERE certificate_type = ? AND year = ?
-          RETURNING value`,
-      ).bind(request.certificateType, year);
-      const insertCertificate = env.DB.prepare(
-        `INSERT INTO certificates
-           (id, certificate_type, certificate_number, verification_token, artwork_slug,
-            edition_number, edition_size, status, created_at)
-         SELECT ?, ?, printf('VL-%s-%04d-%04d', ?, ?, value), ?, ?,
-                ?, ?, 'pending', ?
-           FROM counters WHERE certificate_type = ? AND year = ?`,
-      ).bind(
-        id, request.certificateType, prefix, year, token, request.artwork.slug,
-        request.editionNumber ?? null, request.editionSize ?? null, now,
-        request.certificateType, year,
-      );
+      const matchingSale = await env.DB.prepare(
+        `SELECT id, sale_number FROM sales
+          WHERE artwork_slug = ? AND item_type = ? AND edition_number IS ?
+            AND status = 'active' AND certificate_id IS NULL
+          ORDER BY created_at, id LIMIT 1`,
+      ).bind(request.artwork.slug, request.certificateType, request.editionNumber ?? null)
+        .first<{ id: string; sale_number: string }>();
+      const counterStatements = matchingSale ? [] : [
+        env.DB.prepare(
+          'INSERT OR IGNORE INTO counters (certificate_type, year, value) VALUES (?, ?, 0)',
+        ).bind(request.certificateType, year),
+        env.DB.prepare(
+          `UPDATE counters SET value = value + 1
+            WHERE certificate_type = ? AND year = ?
+            RETURNING value`,
+        ).bind(request.certificateType, year),
+      ];
+      const insertCertificate = matchingSale
+        ? env.DB.prepare(
+          `INSERT INTO certificates
+             (id, certificate_type, certificate_number, verification_token, artwork_slug,
+              edition_number, edition_size, status, created_at)
+           SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?
+             FROM sales WHERE id = ? AND status = 'active' AND certificate_id IS NULL`,
+        ).bind(
+          id, request.certificateType, matchingSale.sale_number, token, request.artwork.slug,
+          request.editionNumber ?? null, request.editionSize ?? null, now, matchingSale.id,
+        )
+        : env.DB.prepare(
+          `INSERT INTO certificates
+             (id, certificate_type, certificate_number, verification_token, artwork_slug,
+              edition_number, edition_size, status, created_at)
+           SELECT ?, ?, printf('VL-%s-%04d-%04d', ?, ?, value), ?, ?,
+                  ?, ?, 'pending', ?
+             FROM counters WHERE certificate_type = ? AND year = ?`,
+        ).bind(
+          id, request.certificateType, prefix, year, token, request.artwork.slug,
+          request.editionNumber ?? null, request.editionSize ?? null, now,
+          request.certificateType, year,
+        );
       const insertVersion = env.DB.prepare(
         `INSERT INTO certificate_versions
           (id, certificate_id, version_number, issued_at, snapshot_json, original_image_path, status, created_at)
@@ -456,7 +851,24 @@ async function createPendingVersion(
          VALUES (?, ?, 'issue_pending', ?, ?)`,
       ).bind(crypto.randomUUID(), id, now, JSON.stringify({ versionNumber: 1, status: 'pending' }));
 
-      const results = await env.DB.batch([counterInit, counterIncrement, insertCertificate, insertVersion, event]);
+      const statements = [...counterStatements, insertCertificate, insertVersion, event];
+      if (matchingSale) {
+        statements.push(
+          env.DB.prepare(
+            `UPDATE sales SET certificate_id = ?
+              WHERE id = ? AND status = 'active' AND certificate_id IS NULL`,
+          ).bind(id, matchingSale.id),
+          env.DB.prepare(
+            `INSERT INTO sales_audit_log
+              (id, actor_id, action, sale_id, sale_number, occurred_at, details_json)
+             VALUES (?, ?, 'certificate_linked', ?, ?, ?, ?)`,
+          ).bind(
+            crypto.randomUUID(), env.ALLOWED_GITHUB_USER_ID || '', matchingSale.id,
+            matchingSale.sale_number, now, JSON.stringify({ certificateId: id }),
+          ),
+        );
+      }
+      const results = await env.DB.batch(statements);
       if (results.some(result => !result.success)) throw new Error('Could not create the pending certificate.');
     }
 
@@ -482,6 +894,47 @@ async function createPendingVersion(
 
 async function adminRoute(request: Request, env: Env, path: string): Promise<Response> {
   if (!await isAuthorized(request, env)) return jsonResponse({ error: 'Not authorized.' }, 403);
+
+  if (path === '/api/admin/sales' || path.startsWith('/api/admin/sales/')) {
+    await enforceSalesRateLimit(env);
+  }
+
+  if (request.method === 'GET' && path === '/api/admin/sales/artworks') {
+    return jsonResponse({ artworks: await listArtworksForSale(request, env) });
+  }
+
+  if (request.method === 'GET' && path === '/api/admin/sales') {
+    const url = new URL(request.url);
+    const requestedPage = Number(url.searchParams.get('page') || 1);
+    const requestedLimit = Number(url.searchParams.get('per_page') || 20);
+    if (!Number.isInteger(requestedPage) || requestedPage < 1
+      || !Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 100) {
+      throw new Error('Enter valid sales pagination values.');
+    }
+    const offset = (requestedPage - 1) * requestedLimit;
+    const { results } = await env.DB.prepare(
+      `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
+              sale_number, buyer_name, buyer_email, sale_date, price, currency, notes,
+              status, cancelled_at, certificate_id, created_at, created_by
+         FROM sales ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+    ).bind(requestedLimit, offset).all<Record<string, unknown>>();
+    const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM sales')
+      .first<{ total: number }>();
+    return jsonResponse({
+      sales: results,
+      page: requestedPage,
+      perPage: requestedLimit,
+      total: Number(count?.total || 0),
+    });
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/sales') {
+    return recordSale(request, env);
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/sales/cancel') {
+    return cancelSale(request, env);
+  }
 
   const tagsMatch = /^\/api\/admin\/certificates\/([0-9a-f-]+)\/tags$/i.exec(path);
   const versionsMatch = /^\/api\/admin\/certificates\/([0-9a-f-]+)\/versions$/i.exec(path);
@@ -623,12 +1076,15 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
   if (request.method === 'POST' && path === '/api/admin/backup') {
     const backupId = crypto.randomUUID();
     const exportedAt = new Date().toISOString();
-    const [counters, certificates, versions, tags, events] = await Promise.all([
+    const [counters, certificates, versions, tags, events, sales, openEditionSalesCounters, salesAudit] = await Promise.all([
       env.DB.prepare('SELECT * FROM counters ORDER BY certificate_type, year').all(),
       env.DB.prepare('SELECT * FROM certificates ORDER BY created_at, id').all(),
       env.DB.prepare('SELECT * FROM certificate_versions ORDER BY certificate_id, version_number').all(),
       env.DB.prepare('SELECT * FROM nfc_tags ORDER BY certificate_id, registered_at, id').all(),
       env.DB.prepare('SELECT * FROM certificate_events ORDER BY occurred_at, id').all(),
+      env.DB.prepare('SELECT * FROM sales ORDER BY created_at, id').all(),
+      env.DB.prepare('SELECT * FROM open_edition_sales_counters ORDER BY artwork_slug').all(),
+      env.DB.prepare('SELECT * FROM sales_audit_log ORDER BY occurred_at, id').all(),
     ]);
     const objects: Array<{ key: string; size: number; etag: string; uploaded: Date }> = [];
     let cursor: string | undefined;
@@ -658,6 +1114,9 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
           versions: versions.results,
           nfcTags: tags.results,
           events: events.results,
+          sales: sales.results,
+          openEditionSalesCounters: openEditionSalesCounters.results,
+          salesAuditLog: salesAudit.results,
         },
         objects,
       },
@@ -1154,13 +1613,15 @@ export default {
       return withCors(response, request, env);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request failed.';
-      const status = /Enter a valid|Enter an NFC tag reference|Enter a replacement NFC tag reference|Choose|Limited edition size must match|Limited editions|Edition number|The artwork|Upload an artwork|Upload a certificate PDF|certificate file is not a valid PDF|Reissue details|Pending certificate edits|Certificate type|reason|valid JSON|Enter an NFC tag UID|Enter an NFC tag placement/i.test(message)
+      const status = /Enter a valid|Enter an NFC tag reference|Enter a replacement NFC tag reference|Choose|Limited edition size must match|Limited editions|Edition number|The artwork|Upload an artwork|Upload a certificate PDF|certificate file is not a valid PDF|Reissue details|Pending certificate edits|Certificate type|reason|valid JSON|Enter an NFC tag UID|Enter an NFC tag placement|buyer name|buyer email|sale date|currency|sale details|sale notes|Notes must|edition number is only valid|not currently available|configured for this artwork|pagination values/i.test(message)
         ? 400
         : /GitHub authorization could not be verified/i.test(message)
           ? 503
+        : /temporarily limited/i.test(message)
+          ? 429
         : /could not be finalized|Could not replace the pending certificate preview|Pending certificate version/.test(message)
           ? 409
-        : /NFC UID is already registered|UNIQUE constraint|limited edition size cannot change/.test(message)
+        : /NFC UID is already registered|UNIQUE constraint|limited edition size cannot change|Could not record the sale|Could not cancel the sale/.test(message)
           ? 409
           : 500;
       return errorResponse(

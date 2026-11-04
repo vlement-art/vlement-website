@@ -37,6 +37,63 @@ up separately. Restoring a ZIP is intentionally not automated; restore into new
 Cloudflare resources and verify the imported records and objects before
 switching the public endpoint.
 
+## Admin sales
+
+The **Sales** section in `/admin` records sales in the same D1 database. It
+loads artwork metadata from the GitHub repository using the signed-in user's
+existing bearer token. Every sales route repeats the certificate Worker's
+GitHub user-ID and repository-push authorization check and uses the existing
+per-user rate limiter (30 requests per minute, automatically reset after one
+minute; it does not lock the account).
+
+Authenticated routes:
+
+- `GET /api/admin/sales/artworks` returns artwork title, category, price,
+  edition metadata, and availability derived from Git frontmatter and active
+  sales.
+- `GET /api/admin/sales?page=1&per_page=20` returns newest sales first.
+- `POST /api/admin/sales` records a sale; sale details are sent in the JSON
+  body.
+- `POST /api/admin/sales/cancel` cancels a sale; send its `saleNumber` in the
+  JSON body. Cancellation is retained in the audit history, and open-edition
+  numbers are never reused.
+
+Sale numbers use the same configured `VL-{type}-{year}-{sequence}` prefixes
+and annual D1 counters as certificates. Open editions also keep a separate
+per-artwork sequence for display. Issuing a certificate for an active,
+unlinked sale uses that sale's reserved number and associates the certificate
+with it. Cancelling a sale that already has a certificate leaves the
+certificate intact and flags it for manual follow-up. Sales, their per-artwork
+open-edition counters, and their append-only audit log are included in the
+certificate backup snapshot.
+
+When recording or cancelling an original or limited-edition sale, the admin
+updates the artwork's `available` frontmatter field through the same GitHub
+Contents API write path used by the artwork editor. D1 and GitHub cannot share
+a transaction; if the GitHub update fails during recording, the admin tries
+to cancel the just-created sale and reports any remaining availability
+correction clearly. Open editions remain available until manually changed.
+
+### Sales deployment
+
+The migration has **not** been applied and the Worker has **not** been
+deployed. After review and merge, apply the migration to the intended
+environment, then deploy the Worker. For production, first make or verify a
+private backup and run these commands from the repository root:
+
+```powershell
+npx wrangler d1 migrations apply vlement-certificates-prod --remote --config workers/certificates/wrangler.jsonc --env production
+npx wrangler deploy --config workers/certificates/wrangler.jsonc --env production
+```
+
+Do not run either command until the migration and deployment have been
+reviewed and explicitly approved for production. For staging, use the
+`vlement-certificates-staging` database and `--env staging` instead. Confirm
+that the repository Actions variable `PUBLIC_CERTIFICATES_API_URL` points to
+the deployed certificate Worker, then deploy the site so `/admin` loads the
+Sales button. Test record, cancellation, availability writeback, and
+certificate-number linking against staging before production use.
+
 ## Local development
 
 Use Node.js 22 or later. These steps use local D1/R2 emulation and do not

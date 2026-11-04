@@ -402,10 +402,21 @@ describe('certificate requests', () => {
       const backup = await backupResponse.json() as {
         backupId: string;
         objects: Array<{ key: string }>;
-        snapshot: { tables: { certificates: unknown[]; nfcTags: unknown[] } };
+        snapshot: {
+          tables: {
+            certificates: unknown[];
+            nfcTags: unknown[];
+            sales: unknown[];
+            openEditionSalesCounters: unknown[];
+            salesAuditLog: unknown[];
+          };
+        };
       };
       expect(backup.snapshot.tables.certificates).toHaveLength(1);
       expect(backup.snapshot.tables.nfcTags).toHaveLength(3);
+      expect(backup.snapshot.tables.sales).toEqual([]);
+      expect(backup.snapshot.tables.openEditionSalesCounters).toEqual([]);
+      expect(backup.snapshot.tables.salesAuditLog).toEqual([]);
       expect(backup.objects.length).toBeGreaterThanOrEqual(3);
       const firstObject = await worker.fetch(new Request(
         `https://certificates.test/api/admin/backup/file?key=${encodeURIComponent(backup.objects[0].key)}`,

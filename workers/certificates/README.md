@@ -46,6 +46,20 @@ GitHub user-ID and repository-push authorization check and uses the existing
 per-user rate limiter (30 requests per minute, automatically reset after one
 minute; it does not lock the account).
 
+The admin sends its existing GitHub OAuth access token in the `Authorization:
+Bearer` header to the public Worker origin configured by the
+`PUBLIC_CERTIFICATES_API_URL` GitHub Actions variable. No separate sales
+password, cookie, or token is used. The Worker returns `401` when the request
+has no valid sign-in, `403` when the GitHub identity or repository permission
+is not allowed, and `503` when `ALLOWED_GITHUB_USER_ID` is unset or invalid.
+For a `403`, check that the Cloudflare Worker secret `ALLOWED_GITHUB_USER_ID`
+contains the signed-in user's numeric GitHub ID and that the account has push
+permission on `vlement-art/vlement-website`. The Worker variables
+`ARTWORK_REPOSITORY` and `ALLOWED_ORIGIN` must also be set for that environment.
+For a `503`, configure the secret for the exact Worker environment serving the
+request (`staging` or `production`) and redeploy/restart as required by
+Cloudflare.
+
 Authenticated routes:
 
 - `GET /api/admin/sales/artworks` returns artwork title, category, price,

@@ -95,7 +95,16 @@ describe('sales endpoints', () => {
       new Request('https://certificates.test/api/admin/sales?token=secret'),
       authorizedEnv(),
     );
-    expect(unauthenticated.status).toBe(403);
+    expect(unauthenticated.status).toBe(401);
+
+    const misconfiguredEnv = Object.assign(Object.create(env), {
+      ALLOWED_GITHUB_USER_ID: '',
+    }) as Env;
+    const misconfigured = await worker.fetch(new Request(
+      'https://certificates.test/api/admin/sales',
+      { headers: headers() },
+    ), misconfiguredEnv);
+    expect(misconfigured.status).toBe(503);
 
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).endsWith('/user')) return Response.json({ id: 99999 });
@@ -117,6 +126,29 @@ describe('sales endpoints', () => {
         { headers: headers() },
       ), authorizedEnv());
       expect(noPushPermission.status).toBe(403);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('lets a signed-in allowed repository writer retrieve recent sales', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith('/user')
+        ? Response.json({ id: 12345 })
+        : Response.json({ permissions: { push: true } })));
+    try {
+      const response = await worker.fetch(new Request(
+        'https://certificates.test/api/admin/sales?page=1&per_page=20',
+        { headers: headers() },
+      ), authorizedEnv());
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        page: 1,
+        perPage: 20,
+        total: expect.any(Number),
+        sales: expect.any(Array),
+      });
     } finally {
       vi.unstubAllGlobals();
     }

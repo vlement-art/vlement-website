@@ -50,6 +50,15 @@
       throw new Error('Could not reach the sales service. Check the connection and try again.');
     }
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      throw new Error('Your GitHub sign-in is missing or expired. Sign out and sign in again.');
+    }
+    if (response.status === 403) {
+      throw new Error('The certificate Worker rejected this GitHub account. Check its allowed user ID and repository write access.');
+    }
+    if (response.status === 503) {
+      throw new Error(payload.error || 'Certificate Worker admin authorization is not configured.');
+    }
     if (!response.ok) throw new Error(payload.error || `Sales service returned ${response.status}.`);
     return payload;
   }

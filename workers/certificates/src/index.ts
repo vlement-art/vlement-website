@@ -80,15 +80,19 @@ async function sha256Bytes(value: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function isAuthorized(request: Request, env: Env): Promise<boolean> {
+async function adminAuthorizationFailure(
+  request: Request,
+  env: Env,
+): Promise<401 | 403 | 503 | null> {
   const authorization = request.headers.get('Authorization') || '';
   const match = /^Bearer\s+(.+)$/i.exec(authorization);
-  if (!match || !/^\d+$/.test(env.ALLOWED_GITHUB_USER_ID || '')) return false;
+  if (!match) return 401;
+  if (!/^\d+$/.test(env.ALLOWED_GITHUB_USER_ID || '')) return 503;
 
   const githubToken = match[1];
   const tokenHash = await sha256(githubToken);
   const cached = identityCache.get(tokenHash);
-  if (cached && cached.expiresAt > Date.now()) return cached.allowed;
+  if (cached && cached.expiresAt > Date.now()) return cached.allowed ? null : 403;
 
   const headers = {
     Accept: 'application/vnd.github+json',
@@ -106,8 +110,11 @@ async function isAuthorized(request: Request, env: Env): Promise<boolean> {
   } catch {
     throw new Error('GitHub authorization could not be verified.');
   }
-  if ([401, 403, 404].includes(userResponse.status) || [401, 403, 404].includes(repositoryResponse.status)) {
-    return false;
+  if (userResponse.status === 401 || repositoryResponse.status === 401) {
+    return 401;
+  }
+  if ([403, 404].includes(userResponse.status) || [403, 404].includes(repositoryResponse.status)) {
+    return 403;
   }
   if (!userResponse.ok || !repositoryResponse.ok) {
     throw new Error('GitHub authorization could not be verified.');
@@ -123,7 +130,7 @@ async function isAuthorized(request: Request, env: Env): Promise<boolean> {
     const oldestHash = identityCache.keys().next().value;
     if (oldestHash) identityCache.delete(oldestHash);
   }
-  return allowed;
+  return allowed ? null : 403;
 }
 
 function requiredText(value: unknown, field: string, maxLength = 500): string {
@@ -893,7 +900,13 @@ async function createPendingVersion(
 }
 
 async function adminRoute(request: Request, env: Env, path: string): Promise<Response> {
-  if (!await isAuthorized(request, env)) return jsonResponse({ error: 'Not authorized.' }, 403);
+  const authorizationFailure = await adminAuthorizationFailure(request, env);
+  if (authorizationFailure === 401 || authorizationFailure === 403) {
+    return jsonResponse({ error: 'Not authorized.' }, authorizationFailure);
+  }
+  if (authorizationFailure === 503) {
+    return jsonResponse({ error: 'Certificate Worker admin authorization is not configured.' }, 503);
+  }
 
   if (path === '/api/admin/sales' || path.startsWith('/api/admin/sales/')) {
     await enforceSalesRateLimit(env);

@@ -16,13 +16,11 @@ available: true
 price: £349
 displayOrder: 1
 signed: true
-landscapeDownload: /images/downloads/pildora-para-dejar-de-so-ar-1c8b52f7-b5ae-4ff1-a3cc-a42dfa6f7980.webp
 editionType: original
 support: Canvas panel
 ---
 
 “Ceci n’est pas une pilule pour arrêter de rêver”—French for “This is not a pill to stop dreaming.” The work playfully echoes René Magritte’s famous challenge and Spanish singer Joaquin Savina and his song "Pastillas para no soñar", to the relationship between an image and the thing it represents. Here, the ordinary form of a pill is transformed into a poetic symbol, suggesting imagination, hope, and the refusal to abandon dreams.
-
 
 
 

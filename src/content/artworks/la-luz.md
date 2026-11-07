@@ -3,7 +3,7 @@ title: La Luz
 year: 2024
 width: 3456
 height: 5184
-medium: Oil on Panel
+medium: Hahnemühle Photo Rag Giclée
 dimensions: 42 x 30cm
 category: Original painting
 collection: Luz
@@ -14,9 +14,11 @@ altText: Still Life Painting of a Red Book, Candle, and Hanging Lightbulb
 featured: true
 available: true
 price: £260
-displayOrder: 1
+displayOrder: 50
+signed: false
 ---
 
 A quiet study in light and shadow: a worn red book, a pencil, a candle, and a lone bulb illuminate a wooden table against the darkness.
+
 
 

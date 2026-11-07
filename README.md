@@ -200,6 +200,11 @@ If you want a real `<form>` instead:
    `form-action` directive in `public/_headers` (already included, commented
    — remove it if you don't use a form at all).
 
+Artwork enquiry links use this same form and prefill an editable message with
+the public artwork details and page URL. Artwork codes remain private and are
+not included. If the endpoint is not configured, the contact page has no form
+and visitors see the existing email and social contact options instead.
+
 **Spam protection:** the form includes a hidden **honeypot field**
 (`company`) that's invisible to real visitors but often caught by bots that
 fill in every field. This is a deterrent, not a guarantee — pair it with

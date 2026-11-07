@@ -87,32 +87,6 @@ const formEndpoint = import.meta.env.PUBLIC_CONTACT_FORM_ENDPOINT;
           </button>
         </form>
 
-        <script>
-          (function () {
-            var success = document.getElementById('contactFormSuccess');
-            var params = new URLSearchParams(window.location.search);
-            var piece = params.get('piece') || params.get('title');
-            var message = document.getElementById('message');
-            var subject = document.getElementById('subject');
-
-            if (message && piece) {
-              var draft = 'I would like to enquire about “' + piece + '”.\n\n';
-              if (!message.value) {
-                message.value = draft;
-              }
-            }
-
-            if (subject && piece) {
-              subject.value = 'Enquiry about “' + piece + '”';
-            }
-
-            if (success && params.get('submitted') === '1') {
-              success.classList.remove('hidden');
-              var clean = window.location.pathname + window.location.hash;
-              window.history.replaceState({}, '', clean);
-            }
-          })();
-        </script>
       </>
     ) : (
       <p class="mt-10 text-sm text-muted">
@@ -125,3 +99,29 @@ const formEndpoint = import.meta.env.PUBLIC_CONTACT_FORM_ENDPOINT;
     )}
   </section>
 </BaseLayout>
+
+<script>
+  import { enquiryDraft } from '../lib/artwork-enquiry.mjs';
+
+  (function () {
+    var success = document.getElementById('contactFormSuccess');
+    var params = new URLSearchParams(window.location.search);
+    var draft = enquiryDraft(params);
+    var message = document.getElementById('message');
+    var subject = document.getElementById('subject');
+
+    if (message instanceof HTMLTextAreaElement && draft && !message.value) {
+      message.value = draft.message;
+    }
+
+    if (subject instanceof HTMLInputElement && draft) {
+      subject.value = draft.subject;
+    }
+
+    if (success && params.get('submitted') === '1') {
+      success.classList.remove('hidden');
+      var clean = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, '', clean);
+    }
+  })();
+</script>

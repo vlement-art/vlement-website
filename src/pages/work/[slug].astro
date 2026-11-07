@@ -3,6 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import Lightbox from '../../components/Lightbox.astro';
 import { getCollection } from 'astro:content';
 import { site } from '../../data/site';
+import { artworkEnquiryLink } from '../../lib/artwork-enquiry.mjs';
 
 export async function getStaticPaths() {
   const artworks = (await getCollection('artworks')).sort(
@@ -25,6 +26,7 @@ const data = artwork.data;
 const title = `${data.title} (${data.year}) — ${site.artistName}`;
 const pageURL = new URL(`/work/${artwork.slug}`, site.url).toString();
 const imageURL = new URL(data.image, site.url).toString();
+const enquiryLink = artworkEnquiryLink(data, pageURL);
 
 const structuredData = {
   '@context': 'https://schema.org',
@@ -52,13 +54,13 @@ const structuredData = {
   canonicalPath={`/work/${artwork.slug}`}
   structuredData={structuredData}
 >
-  <article class="mx-auto max-w-6xl px-6 py-8 sm:py-12">
-    <nav aria-label="Breadcrumb" class="mb-8 text-xs uppercase tracking-wider text-muted sm:mb-10">
+  <article class="mx-auto max-w-6xl px-6 py-5 sm:py-12">
+    <nav aria-label="Breadcrumb" class="mb-4 text-xs uppercase tracking-wider text-muted sm:mb-10">
       <a href="/work" class="hover:text-ink">Gallery</a> <span aria-hidden="true">/</span> {data.title}
     </nav>
 
     <div class="grid items-start gap-8 sm:grid-cols-[1.2fr_0.8fr] sm:gap-16">
-      <div>
+      <div class="order-2 sm:order-1">
         <button
           type="button"
           class="block w-full border-0 bg-transparent p-0"
@@ -95,42 +97,47 @@ const structuredData = {
         )}
       </div>
 
-      <div class="sm:sticky sm:top-24">
-        <p class="mb-3 text-xs uppercase tracking-[0.22em] text-muted">Artwork · {data.collection}</p>
-        <h1 class="font-original text-4xl italic leading-tight sm:text-6xl">{data.title}</h1>
-        <p class="mt-2 text-muted">{data.year} · {data.medium}</p>
-
-        <dl class="mt-8 grid grid-cols-2 gap-x-5 gap-y-6 border-y border-line py-7 text-sm">
-          <div>
-            <dt class="text-xs uppercase tracking-wide text-muted">Dimensions</dt>
-            <dd class="mt-1">{data.dimensions}</dd>
-          </div>
-          <div>
-            <dt class="text-xs uppercase tracking-wide text-muted">Collection</dt>
-            <dd class="mt-1">{data.collection}</dd>
-          </div>
-          <div>
-            <dt class="text-xs uppercase tracking-wide text-muted">Category</dt>
-            <dd class="mt-1">{data.category}</dd>
-          </div>
-          <div>
-            <dt class="text-xs uppercase tracking-wide text-muted">Availability</dt>
-            <dd class="mt-1">{data.available ? 'Available' : 'Sold'}</dd>
-          </div>
-        </dl>
-
-        <div class="prose-body mt-8 max-w-prose text-base leading-relaxed text-muted">
-          <Content />
+      <div class="contents sm:sticky sm:top-24 sm:order-2 sm:block">
+        <div class="order-1">
+          <p class="mb-2 text-xs uppercase tracking-[0.22em] text-muted sm:mb-3">Artwork · {data.collection}</p>
+          <h1 class="font-original text-3xl italic leading-tight sm:text-6xl">{data.title}</h1>
+          <p class="mt-2 text-muted">{data.year} · {data.medium}</p>
+          {data.price && <p class="mt-3 text-lg font-bold text-accent-dark">{data.price}</p>}
+          <p class="mt-4 text-sm">{data.available ? 'Available' : 'Sold'}</p>
+          {data.available ? (
+            <a
+              href={enquiryLink}
+              class="mt-2 inline-flex min-h-[2.75rem] w-full items-center justify-center border border-ink px-4 py-2 text-xs uppercase tracking-wider hover:bg-ink hover:text-paper sm:w-auto"
+              aria-label={`Request information about ${data.title}`}
+            >
+              Request information
+            </a>
+          ) : (
+            <a href={enquiryLink} class="mt-2 inline-flex min-h-[2.75rem] items-center text-sm text-muted underline underline-offset-4 hover:text-ink">
+              Ask about similar works
+            </a>
+          )}
         </div>
 
-        <div class="mt-10 flex flex-wrap items-center gap-4 border-t border-line pt-6">
-          {data.price && <strong class="text-lg text-accent-dark">{data.price}</strong>}
-          <a
-            href={`/contact?piece=${encodeURIComponent(data.title)}`}
-            class="inline-flex min-h-[2.75rem] items-center justify-center border border-ink bg-ink px-4 py-2 text-xs uppercase tracking-wider text-paper"
-          >
-            Enquire about this piece
-          </a>
+        <div class="order-3">
+          <dl class="grid grid-cols-2 gap-x-5 gap-y-6 border-y border-line py-7 text-sm sm:mt-8">
+            <div>
+              <dt class="text-xs uppercase tracking-wide text-muted">Dimensions</dt>
+              <dd class="mt-1">{data.dimensions}</dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase tracking-wide text-muted">Collection</dt>
+              <dd class="mt-1">{data.collection}</dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase tracking-wide text-muted">Category</dt>
+              <dd class="mt-1">{data.category}</dd>
+            </div>
+          </dl>
+
+          <div class="prose-body mt-8 max-w-prose text-base leading-relaxed text-muted">
+            <Content />
+          </div>
         </div>
       </div>
     </div>

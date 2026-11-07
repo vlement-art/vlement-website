@@ -142,27 +142,27 @@ async function upsertArtworkCode(env: Env, body: unknown, actorId: string): Prom
 
   const createdAt = new Date().toISOString();
   const id = crypto.randomUUID();
-  const insert = await env.DB.prepare(
-    `INSERT INTO artwork_codes (id, artwork_slug, artwork_code, type, edition_size, based_on_code, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
-  ).bind(
-    id,
-    slug,
-    artworkCode,
-    type,
-    type === 'LE' ? Number(editionSize) : null,
-    basedOnCode,
-    createdAt,
-  ).run();
-
-  if (!insert.meta.success) {
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO artwork_codes (id, artwork_slug, artwork_code, type, edition_size, based_on_code, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+    ).bind(
+      id,
+      slug,
+      artworkCode,
+      type,
+      type === 'LE' ? Number(editionSize) : null,
+      basedOnCode,
+      createdAt,
+    ),
+    env.DB.prepare(
+      `INSERT INTO artwork_code_audit_log (id, actor_id, action, artwork_code, occurred_at, details_json)
+       VALUES (?, ?, 'code_created', ?, ?, ?)`,
+    ).bind(crypto.randomUUID(), actorId, artworkCode, createdAt, JSON.stringify({ slug, type })),
+  ]);
+  if (results.some(result => !result.success)) {
     throw new Error('Could not create the artwork code.');
   }
-
-  await env.DB.prepare(
-    `INSERT INTO artwork_code_audit_log (id, actor_id, action, artwork_code, occurred_at, details_json)
-     VALUES (?, ?, 'code_created', ?, ?, ?)`,
-  ).bind(crypto.randomUUID(), actorId, artworkCode, createdAt, JSON.stringify({ slug, type })).run();
 
   const record = await getArtworkCodeRecord(env, slug);
   if (!record) throw new Error('The new artwork code could not be loaded.');

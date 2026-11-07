@@ -15,9 +15,15 @@ featured: true
 available: true
 price: £110
 displayOrder: 1
+editionType: limited
+editionSize: 50
+support: Print-Hahnemühle Photo Rag Giclée
+printDate: '2026'
+signed: true
 ---
 
-A poignant piece that captures the essence of light and hope. Dated August 2026, this is an edition of 50. Includes a certificate of authenticity.
+A poignant piece that captures the essence of light and hope. Dated August 2026, this is an edition of 50. 
+
 
 
 

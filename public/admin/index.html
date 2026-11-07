@@ -144,13 +144,14 @@
   .checkbox-row { display: flex; align-items: center; gap: 8px; }
   .checkbox-row label { font-size: 13px; font-weight: 600; }
 
-  .image-field { display: flex; gap: 12px; align-items: center; }
+  .image-field { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .image-field input[type=file] { min-width: 0; max-width: 100%; }
   .image-field .preview {
     width: 72px; height: 72px; border-radius: 8px; overflow: hidden;
     background: #eee repeating-conic-gradient(#e5e5e5 0% 25%, #fff 0% 50%) 50% / 12px 12px;
     flex: none; display: flex; align-items: center; justify-content: center;
   }
-  .image-field .preview img { width: 100%; height: 100%; object-fit: cover; }
+  .image-field .preview img { width: 100%; height: 100%; object-fit: contain; }
   .image-field .preview span { font-size: 10px; color: var(--muted); }
 
   .modal-footer {
@@ -391,6 +392,11 @@ async function ghPutFile(path, base64Content, message, sha) {
       ...(sha ? { sha } : {})
     })
   });
+  if (!res.ok) {
+    const err = new Error(`GitHub could not save ${path} (${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
   return res.json(); // { content: { sha, path, ... }, commit: {...} }
 }
 
@@ -442,6 +448,83 @@ function slugify(str) {
 function extOf(filename) {
   const m = /\.([a-zA-Z0-9]+)$/.exec(filename);
   return m ? m[1].toLowerCase() : 'jpg';
+}
+
+async function jpegOrientation(file) {
+  if (file.type !== 'image/jpeg') return 1;
+  const buffer = await file.arrayBuffer();
+  const view = new DataView(buffer);
+  if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) throw new Error('The JPEG image could not be read.');
+  let offset = 2;
+  while (offset + 4 <= view.byteLength) {
+    if (view.getUint8(offset) !== 0xff) break;
+    const marker = view.getUint8(offset + 1);
+    if (marker === 0xda || marker === 0xd9) break;
+    const length = view.getUint16(offset + 2);
+    const end = offset + 2 + length;
+    if (length < 2 || end > view.byteLength) throw new Error('The JPEG image metadata is invalid.');
+    const start = offset + 4;
+    if (marker === 0xe1 && start + 14 <= end && view.getUint32(start) === 0x45786966
+      && view.getUint16(start + 4) === 0) {
+      const tiff = start + 6;
+      const order = view.getUint16(tiff);
+      if (order !== 0x4949 && order !== 0x4d4d) throw new Error('The JPEG orientation metadata is invalid.');
+      const little = order === 0x4949;
+      if (view.getUint16(tiff + 2, little) !== 42) throw new Error('The JPEG orientation metadata is invalid.');
+      const ifd = tiff + view.getUint32(tiff + 4, little);
+      if (ifd + 2 > end) throw new Error('The JPEG orientation metadata is invalid.');
+      const count = view.getUint16(ifd, little);
+      for (let index = 0; index < count; index++) {
+        const entry = ifd + 2 + index * 12;
+        if (entry + 12 > end) throw new Error('The JPEG orientation metadata is invalid.');
+        if (view.getUint16(entry, little) === 0x0112) {
+          if (view.getUint16(entry + 2, little) !== 3 || view.getUint32(entry + 4, little) !== 1) {
+            throw new Error('The JPEG orientation metadata is invalid.');
+          }
+          const value = view.getUint16(entry + 8, little);
+          if (value < 1 || value > 8) throw new Error('The JPEG orientation metadata is invalid.');
+          return value;
+        }
+      }
+    }
+    offset = end;
+  }
+  return 1;
+}
+
+async function normalizeImageOrientation(file) {
+  if (await jpegOrientation(file) === 1) return file;
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Could not prepare image.');
+    context.drawImage(bitmap, 0, 0);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+    if (!blob) throw new Error('Could not encode image.');
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    throw new Error('Could not correct this photo’s orientation. Choose a different image or rotate and save it first.');
+  } finally {
+    bitmap?.close();
+  }
+}
+
+async function chooseNewSlug(title, requireCodes) {
+  const base = slugify(title).slice(0, 110).replace(/-+$/, '') || 'artwork';
+  if (requireCodes) {
+    if (!window.VlementAdminArtworkCodes) throw new Error('Artwork codes are unavailable. Reload the page before duplicating an artwork.');
+    await window.VlementAdminArtworkCodes.load();
+  }
+  for (let suffix = 1; suffix <= 10000; suffix++) {
+    const slug = suffix === 1 ? base : `${base}-${suffix}`;
+    if (entries.some(entry => entry.slug === slug) || window.VlementAdminArtworkCodes?.getCode(slug)) continue;
+    if (!await ghGetFile(`${CONTENT_DIR}/${slug}.md`)) return slug;
+  }
+  throw new Error('Could not find an unused artwork ID. Change the title and try again.');
 }
 
 /* ---------------------------------------------------------------------
@@ -585,24 +668,31 @@ function escapeHtml(s) {
    EDITOR MODAL
 --------------------------------------------------------------------- */
 let currentEntry = null;
-let pendingImageFile = null;
-let pendingThumbFile = null;
-let pendingPortraitDownloadFile = null;
-let pendingLandscapeDownloadFile = null;
+let editorData = {};
+let duplicateDraft = false;
+let imageFields = {};
+const imageFieldSpecs = [
+  { key: 'image', id: 'image', directory: IMAGE_DIR, prefix: IMAGE_PUBLIC_PREFIX },
+  { key: 'thumbnail', id: 'thumb', directory: THUMB_DIR, prefix: THUMB_PUBLIC_PREFIX },
+  { key: 'portraitDownload', id: 'portrait-download', directory: DOWNLOAD_DIR, prefix: DOWNLOAD_PUBLIC_PREFIX },
+  { key: 'landscapeDownload', id: 'landscape-download', directory: DOWNLOAD_DIR, prefix: DOWNLOAD_PUBLIC_PREFIX }
+];
 
-function openEditor(entry) {
-  currentEntry = entry; // null = new
-  pendingImageFile = null;
-  pendingThumbFile = null;
-  pendingPortraitDownloadFile = null;
-  pendingLandscapeDownloadFile = null;
-  const d = entry ? entry.data : {};
-  const isNew = !entry;
+function openEditor(entry, draft = null) {
+  releaseImagePreviews();
+  currentEntry = draft ? null : entry;
+  duplicateDraft = Boolean(draft);
+  const d = draft ? draft.data : entry ? entry.data : {};
+  editorData = { ...d };
+  imageFields = Object.fromEntries(imageFieldSpecs.map(({ key }) => [
+    key, { saved: d[key] || '', file: draft?.files[key] || null, url: null }
+  ]));
+  const isNew = !currentEntry;
   const selectedCategory = d.category || '';
   const selectedCollection = d.collection || '';
   const categoryOptions = [...new Set([...CATEGORY_OPTIONS, ...entries.map(e => e.data.category), selectedCategory].filter(Boolean))];
   const collectionOptions = [...new Set([...COLLECTION_OPTIONS, ...entries.map(e => e.data.collection), selectedCollection].filter(Boolean))];
-  const selectedHeroField = homepageSettings.heroSlug === entry?.slug
+  const selectedHeroField = !draft && homepageSettings.heroSlug === entry?.slug
     ? homepageSettings.heroImageField || 'image'
     : '';
 
@@ -677,34 +767,38 @@ function openEditor(entry) {
     </div>
 
     <div class="field">
-      <label>Full-size image</label>
+      <label for="f-image">Full-size image</label>
       <div class="image-field">
-        <div class="preview" id="preview-image">${d.image ? `<img src="${d.image}">` : '<span>none</span>'}</div>
+        <div class="preview" id="preview-image"></div>
         <input type="file" id="f-image" accept="image/*">
+        <button class="btn" type="button" id="delete-image" aria-label="Delete full-size picture">Delete picture</button>
       </div>
     </div>
 
     <div class="field">
-      <label>Thumbnail <span class="hint">Smaller/cropped version for gallery cards</span></label>
+      <label for="f-thumb">Thumbnail <span class="hint">Smaller/cropped version for gallery cards</span></label>
       <div class="image-field">
-        <div class="preview" id="preview-thumb">${d.thumbnail ? `<img src="${d.thumbnail}">` : '<span>none</span>'}</div>
+        <div class="preview" id="preview-thumb"></div>
         <input type="file" id="f-thumb" accept="image/*">
+        <button class="btn" type="button" id="delete-thumb" aria-label="Delete thumbnail picture">Delete picture</button>
       </div>
     </div>
 
     <div class="field">
-      <label>Portrait download <span class="hint">Optional high-resolution file</span></label>
+      <label for="f-portrait-download">Portrait download <span class="hint">Optional high-resolution file</span></label>
       <div class="image-field">
-        <div class="preview" id="preview-portrait-download">${d.portraitDownload ? `<img src="${d.portraitDownload}">` : '<span>none</span>'}</div>
+        <div class="preview" id="preview-portrait-download"></div>
         <input type="file" id="f-portrait-download" accept="image/*">
+        <button class="btn" type="button" id="delete-portrait-download" aria-label="Delete portrait download picture">Delete picture</button>
       </div>
     </div>
 
     <div class="field">
-      <label>Landscape download <span class="hint">Optional high-resolution file</span></label>
+      <label for="f-landscape-download">Landscape download <span class="hint">Optional high-resolution file</span></label>
       <div class="image-field">
-        <div class="preview" id="preview-landscape-download">${d.landscapeDownload ? `<img src="${d.landscapeDownload}">` : '<span>none</span>'}</div>
+        <div class="preview" id="preview-landscape-download"></div>
         <input type="file" id="f-landscape-download" accept="image/*">
+        <button class="btn" type="button" id="delete-landscape-download" aria-label="Delete landscape download picture">Delete picture</button>
       </div>
     </div>
 
@@ -771,7 +865,7 @@ function openEditor(entry) {
 
     <div class="field">
       <label>Full description</label>
-      <textarea id="f-body" rows="6">${escapeHtml(entry ? entry.body : '')}</textarea>
+      <textarea id="f-body" rows="6">${escapeHtml(draft ? draft.body : entry ? entry.body : '')}</textarea>
     </div>
 
     <div id="modal-error"></div>
@@ -779,49 +873,32 @@ function openEditor(entry) {
     <div class="modal-footer">
       <button class="btn" id="cancel-btn">Cancel</button>
       <div class="right">
+        ${currentEntry ? '<button class="btn" id="duplicate-btn" type="button">Duplicate</button>' : ''}
         <button class="btn primary" id="save-btn">Save</button>
       </div>
     </div>
   `;
 
-  document.getElementById('f-image').addEventListener('change', e => {
-    pendingImageFile = e.target.files[0] || null;
-    if (pendingImageFile) {
-      document.getElementById('preview-image').innerHTML = `<img src="${URL.createObjectURL(pendingImageFile)}">`;
-      refreshHeroImageOptions(entry, selectedHeroField);
-      const preview = new Image();
-      const objectUrl = URL.createObjectURL(pendingImageFile);
-      preview.onload = () => {
-        document.getElementById('f-width').value = preview.naturalWidth;
-        document.getElementById('f-height').value = preview.naturalHeight;
-        URL.revokeObjectURL(objectUrl);
-      };
-      preview.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        document.getElementById('modal-error').innerHTML = '<div class="status-banner error">The selected artwork image could not be read. Choose a valid image file.</div>';
-      };
-      preview.src = objectUrl;
-    }
-  });
-  document.getElementById('f-thumb').addEventListener('change', e => {
-    pendingThumbFile = e.target.files[0] || null;
-    if (pendingThumbFile) {
-      document.getElementById('preview-thumb').innerHTML = `<img src="${URL.createObjectURL(pendingThumbFile)}">`;
-      refreshHeroImageOptions(entry, selectedHeroField);
-    }
-  });
-  document.getElementById('f-portrait-download').addEventListener('change', e => {
-    pendingPortraitDownloadFile = e.target.files[0] || null;
-    if (pendingPortraitDownloadFile) {
-      document.getElementById('preview-portrait-download').innerHTML = `<img src="${URL.createObjectURL(pendingPortraitDownloadFile)}">`;
-    }
-  });
-  document.getElementById('f-landscape-download').addEventListener('change', e => {
-    pendingLandscapeDownloadFile = e.target.files[0] || null;
-    if (pendingLandscapeDownloadFile) {
-      document.getElementById('preview-landscape-download').innerHTML = `<img src="${URL.createObjectURL(pendingLandscapeDownloadFile)}">`;
-    }
-  });
+  for (const spec of imageFieldSpecs) {
+    const state = imageFields[spec.key];
+    document.getElementById(`f-${spec.id}`).addEventListener('change', event => {
+      state.file = event.target.files[0] || null;
+      renderImageField(spec);
+      refreshHeroImageOptions();
+    });
+    document.getElementById(`delete-${spec.id}`).addEventListener('click', () => {
+      if (state.file) {
+        state.file = null;
+        document.getElementById(`f-${spec.id}`).value = '';
+      } else if (state.saved) {
+        if (!confirm('Remove this picture?')) return;
+        state.saved = '';
+      }
+      renderImageField(spec);
+      refreshHeroImageOptions();
+    });
+    renderImageField(spec);
+  }
   document.getElementById('add-category-btn').addEventListener('click', () => {
     createTaxonomyFromEditor('category').catch(err => showBanner(err.message, 'error'));
   });
@@ -834,30 +911,91 @@ function openEditor(entry) {
     if (!limited) document.getElementById('f-editionSize').value = '';
   });
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
+  document.getElementById('duplicate-btn')?.addEventListener('click', duplicateArtwork);
   document.getElementById('save-btn').addEventListener('click', saveEntry);
 
   document.getElementById('modal-overlay').hidden = false;
 }
 
-function refreshHeroImageOptions(entry, selectedField) {
+function releaseImagePreviews() {
+  for (const state of Object.values(imageFields)) {
+    if (state.url) URL.revokeObjectURL(state.url);
+  }
+}
+
+function renderImageField(spec) {
+  const state = imageFields[spec.key];
+  if (state.url) URL.revokeObjectURL(state.url);
+  state.url = state.file ? URL.createObjectURL(state.file) : null;
+  const preview = document.getElementById(`preview-${spec.id}`);
+  const source = state.url || state.saved;
+  preview.replaceChildren();
+  if (source) {
+    const image = document.createElement('img');
+    image.alt = '';
+    image.src = source;
+    preview.append(image);
+    if (spec.key === 'image' && state.file) {
+      image.onload = () => {
+        if (imageFields.image === state && state.url === source) {
+          document.getElementById('f-width').value = image.naturalWidth;
+          document.getElementById('f-height').value = image.naturalHeight;
+        }
+      };
+      image.onerror = () => {
+        document.getElementById('modal-error').textContent = 'The selected artwork image could not be read. Choose a valid image file.';
+      };
+    } else if (spec.key === 'image' && state.saved) {
+      document.getElementById('f-width').value = editorData.width ?? '';
+      document.getElementById('f-height').value = editorData.height ?? '';
+    }
+  } else {
+    const empty = document.createElement('span');
+    empty.textContent = 'none';
+    preview.append(empty);
+    if (spec.key === 'image') {
+      document.getElementById('f-width').value = '';
+      document.getElementById('f-height').value = '';
+    }
+  }
+  document.getElementById(`delete-${spec.id}`).disabled = !source;
+}
+
+function duplicateArtwork() {
+  const fields = ['title', 'year', 'medium', 'dimensions', 'displayOrder', 'width', 'height',
+    'category', 'collection', 'summary', 'altText', 'price', 'editionType', 'editionSize', 'support', 'printDate'];
+  const data = Object.fromEntries(fields.map(key => [key, document.getElementById(`f-${key}`).value]));
+  data.featured = document.getElementById('f-featured').checked;
+  data.signed = document.getElementById('f-signed').checked;
+  data.available = true;
+  const files = {};
+  for (const { key } of imageFieldSpecs) {
+    data[key] = imageFields[key].saved;
+    files[key] = imageFields[key].file;
+  }
+  openEditor(null, { data, files, body: document.getElementById('f-body').value });
+}
+
+function refreshHeroImageOptions() {
   const select = document.getElementById('f-heroImage');
   if (!select) return;
-  const currentSelection = select.value || selectedField || '';
-  const d = entry?.data || {};
+  const currentSelection = select.value;
   const choices = [
     { value: '', label: 'Not the homepage hero' },
-    ...((d.image || pendingImageFile) ? [{ value: 'image', label: 'Use the full-size image' }] : []),
-    ...((d.thumbnail || pendingThumbFile) ? [{ value: 'thumbnail', label: 'Use the thumbnail image' }] : [])
+    ...((imageFields.image.saved || imageFields.image.file) ? [{ value: 'image', label: 'Use the full-size image' }] : []),
+    ...((imageFields.thumbnail.saved || imageFields.thumbnail.file) ? [{ value: 'thumbnail', label: 'Use the thumbnail image' }] : [])
   ];
   select.innerHTML = choices.map(choice =>
     `<option value="${choice.value}" ${choice.value === currentSelection ? 'selected' : ''}>${choice.label}</option>`
   ).join('');
-  if (homepageSettings.heroSlug === entry?.slug && currentSelection) {
+  if (homepageSettings.heroSlug === currentEntry?.slug && currentSelection) {
     select.querySelector('option[value=""]').disabled = true;
   }
 }
 
 function closeModal() {
+  releaseImagePreviews();
+  imageFields = {};
   document.getElementById('modal-overlay').hidden = true;
   currentEntry = null;
 }
@@ -916,21 +1054,34 @@ async function saveEntry() {
     if (!title) throw new Error('Title is required.');
 
     const isNew = !currentEntry;
-    const slug = currentEntry ? currentEntry.slug : slugify(title);
-    const mdPath = `${CONTENT_DIR}/${slug}.md`;
     const year = Number(document.getElementById('f-year').value);
-    const width = Number(document.getElementById('f-width').value);
-    const height = Number(document.getElementById('f-height').value);
+    let width = Number(document.getElementById('f-width').value);
+    let height = Number(document.getElementById('f-height').value);
     const category = document.getElementById('f-category').value;
     const collection = document.getElementById('f-collection').value;
     if (!Number.isInteger(year) || year < 1900 || year > 2100) throw new Error('Enter a valid artwork year.');
+    if (!(imageFields.image.file || imageFields.image.saved) || !(imageFields.thumbnail.file || imageFields.thumbnail.saved)) {
+      throw new Error('A full-size picture and thumbnail are required. Choose a replacement before saving.');
+    }
+    if (imageFields.image.file) {
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(imageFields.image.file, { imageOrientation: 'from-image' });
+        width = bitmap.width;
+        height = bitmap.height;
+      } catch {
+        throw new Error('The selected artwork image could not be read. Choose a valid image file.');
+      } finally {
+        bitmap?.close();
+      }
+    }
     if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
       throw new Error('Enter valid image width and height in pixels. Choosing a full-size image will fill these automatically.');
     }
     if (!category || !collection) throw new Error('Choose a category and collection before saving.');
 
     const data = {
-      ...(currentEntry?.data || {}),
+      ...(duplicateDraft ? {} : editorData),
       title,
       year,
       width,
@@ -940,10 +1091,10 @@ async function saveEntry() {
       category,
       collection,
       summary: document.getElementById('f-summary').value.trim(),
-      image: currentEntry?.data.image,
-      thumbnail: currentEntry?.data.thumbnail,
-      portraitDownload: currentEntry?.data.portraitDownload,
-      landscapeDownload: currentEntry?.data.landscapeDownload,
+      image: imageFields.image.saved || undefined,
+      thumbnail: imageFields.thumbnail.saved || undefined,
+      portraitDownload: imageFields.portraitDownload.saved || undefined,
+      landscapeDownload: imageFields.landscapeDownload.saved || undefined,
       altText: document.getElementById('f-altText').value.trim(),
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
@@ -961,44 +1112,25 @@ async function saveEntry() {
       && (!Number.isInteger(data.editionSize) || data.editionSize < 1)) {
       throw new Error('Enter a valid limited-edition size.');
     }
+    if (duplicateDraft && !data.editionType) {
+      throw new Error('Choose a certificate artwork type for the duplicate before saving.');
+    }
+    const slug = isNew ? await chooseNewSlug(title, duplicateDraft) : currentEntry.slug;
+    const mdPath = `${CONTENT_DIR}/${slug}.md`;
     const body = document.getElementById('f-body').value;
     const heroImageField = document.getElementById('f-heroImage').value;
-    if (!(pendingImageFile || data.image) || !(pendingThumbFile || data.thumbnail)) {
-      throw new Error('Upload both a full-size image and a thumbnail before saving.');
-    }
     if (!heroImageField && homepageSettings.heroSlug === slug) {
       throw new Error('Select a full-size image or thumbnail to keep the current homepage hero.');
     }
 
-    // Upload full image if a new one was chosen
-    if (pendingImageFile) {
-      const ext = extOf(pendingImageFile.name);
-      const imgPath = `${IMAGE_DIR}/${slug}.${ext}`;
-      const b64 = await fileToBase64(pendingImageFile);
-      await ghPutFileSafe(imgPath, b64, `Upload image for ${title}`);
-      data.image = `${IMAGE_PUBLIC_PREFIX}/${slug}.${ext}`;
-    }
-
-    // Upload thumbnail if a new one was chosen
-    if (pendingThumbFile) {
-      const ext = extOf(pendingThumbFile.name);
-      const thumbPath = `${THUMB_DIR}/${slug}.${ext}`;
-      const b64 = await fileToBase64(pendingThumbFile);
-      await ghPutFileSafe(thumbPath, b64, `Upload thumbnail for ${title}`);
-      data.thumbnail = `${THUMB_PUBLIC_PREFIX}/${slug}.${ext}`;
-    }
-
-    // Upload optional orientation-specific download files
-    for (const [orientation, file] of [
-      ['portrait', pendingPortraitDownloadFile],
-      ['landscape', pendingLandscapeDownloadFile]
-    ]) {
-      if (!file) continue;
-      const ext = extOf(file.name);
-      const downloadPath = `${DOWNLOAD_DIR}/${slug}-${orientation}.${ext}`;
-      const b64 = await fileToBase64(file);
-      await ghPutFileSafe(downloadPath, b64, `Upload ${orientation} download for ${title}`);
-      data[`${orientation}Download`] = `${DOWNLOAD_PUBLIC_PREFIX}/${slug}-${orientation}.${ext}`;
+    for (const spec of imageFieldSpecs) {
+      const selected = imageFields[spec.key].file;
+      if (!selected) continue;
+      const file = await normalizeImageOrientation(selected);
+      const name = `${slug}-${crypto.randomUUID()}.${extOf(file.name)}`;
+      const path = `${spec.directory}/${name}`;
+      await ghPutFile(path, await fileToBase64(file), `Upload ${spec.key} for ${title}`);
+      data[spec.key] = `${spec.prefix}/${name}`;
     }
 
     // Clean undefined keys
@@ -1007,7 +1139,9 @@ async function saveEntry() {
     const content = buildFrontmatter(data, body);
     const b64Content = utf8ToBase64(content);
 
-    const putResult = await ghPutFileSafe(mdPath, b64Content, `${isNew ? 'Add' : 'Update'} artwork: ${title}`);
+    const putResult = isNew
+      ? await ghPutFile(mdPath, b64Content, `Add artwork: ${title}`)
+      : await ghPutFileSafe(mdPath, b64Content, `Update artwork: ${title}`);
     const newSha = putResult?.content?.sha;
 
     if (heroImageField && (

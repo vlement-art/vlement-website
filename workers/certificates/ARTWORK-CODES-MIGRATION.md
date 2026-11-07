@@ -27,3 +27,22 @@ npx wrangler d1 execute vlement-certificates-local --local --command "PRAGMA for
 ```
 
 The repository currently has no checked-in artwork-code backfill command. Backfill requires a deterministic, reviewed mapping of each markdown artwork's `editionType` (including a manual decision for missing types), followed by links to existing certificates/sales. Generate and review that mapping before any explicit write operation; do not infer missing edition types silently.
+
+## Checking for missing creation audit events
+
+An earlier Worker version could report "Could not create the artwork code" after
+the code was saved, but before its creation audit event was written. Refresh the
+admin and retain any existing code rather than assigning a replacement. An
+authorized operator can identify affected records using this read-only query:
+
+```sql
+SELECT ac.artwork_slug, ac.artwork_code, ac.type, ac.created_at
+FROM artwork_codes ac
+WHERE NOT EXISTS (
+  SELECT 1 FROM artwork_code_audit_log log
+  WHERE log.artwork_code = ac.artwork_code AND log.action = 'code_created'
+);
+```
+
+Review any results before deciding how to reconcile the audit history. Do not
+fabricate the original actor or delete and reissue codes.

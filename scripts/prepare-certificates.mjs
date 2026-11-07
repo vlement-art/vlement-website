@@ -21,3 +21,11 @@ await build({
   target: 'es2022',
   outfile: 'public/admin/certificates.js',
 });
+await build({
+  entryPoints: ['src/admin/artwork-codes.js'],
+  bundle: true,
+  format: 'iife',
+  minify: true,
+  target: 'es2022',
+  outfile: 'public/admin/artwork-codes.js',
+});

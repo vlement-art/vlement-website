@@ -561,7 +561,9 @@ function validateIssueRequest(input: unknown): IssueRequest {
         throw new Error('Enter an NFC tag UID using letters, numbers, dots, colons, dashes or underscores.');
       }
       normalized.nfcTagUid = requiredText(nfcTagUid, 'NFC tag UID', 120);
-      normalized.nfcTagPlacement = requiredText(candidate.nfcTagPlacement, 'NFC tag placement', 200);
+      if (candidate.nfcTagPlacement != null && candidate.nfcTagPlacement !== '') {
+        normalized.nfcTagPlacement = requiredText(candidate.nfcTagPlacement, 'NFC tag placement', 200);
+      }
     }
   }
   if (!normalized.nfcTagUid && candidate.nfcTagPlacement != null
@@ -657,6 +659,26 @@ async function createPendingVersion(
   const type = certificateTypes[request.certificateType];
   const prefix = type.prefix;
   const originalImagePath = `certificates/${id}/v${versionNumber}/artwork-original.${extensionFor(image)}`;
+  let artworkCode: string | null = null;
+  if (reissue || replacement) {
+    const previous = await env.DB.prepare(
+      `SELECT c.artwork_code, v.snapshot_json
+         FROM certificates c JOIN certificate_versions v ON v.certificate_id = c.id
+        WHERE c.id = ? AND (? IS NULL OR v.id = ?)
+        ORDER BY v.version_number DESC LIMIT 1`,
+    ).bind(id, replacement?.versionId || null, replacement?.versionId || null)
+      .first<{ artwork_code: string | null; snapshot_json: string }>();
+    if (previous) {
+      const previousSnapshot = JSON.parse(previous.snapshot_json) as { artworkCode?: string };
+      artworkCode = previousSnapshot.artworkCode || previous.artwork_code;
+    }
+  } else {
+    const codeType = { original: 'O', limited_edition: 'LE', open_edition: 'OE' }[request.certificateType];
+    const code = await env.DB.prepare(
+      `SELECT artwork_code FROM artwork_codes WHERE artwork_slug = ? AND type = ? AND status = 'active'`,
+    ).bind(request.artwork.slug, codeType).first<{ artwork_code: string }>();
+    artworkCode = code?.artwork_code || null;
+  }
   const snapshot = {
     ...request.artwork,
     artist: certificateConfig.artist,
@@ -664,6 +686,7 @@ async function createPendingVersion(
     certificateTypeTitle: type.pdfTitle,
     certificateWording: type.pdfWording,
     nfcSuggested: type.nfcDefault,
+    ...(artworkCode ? { artworkCode } : {}),
     ...(request.certificateType === 'limited_edition'
       ? { editionNumber: request.editionNumber, editionSize: request.editionSize }
       : request.certificateType === 'open_edition'
@@ -1334,7 +1357,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     });
     try {
       const now = new Date().toISOString();
-      const newTagId = nfcTagUid && !existingTag ? crypto.randomUUID() : null;
+      const newTagId = nfcTagUid && snapshot.nfcTagPlacement && !existingTag ? crypto.randomUUID() : null;
       const tagRegistration = newTagId && nfcTagUid
         ? [
           env.DB.prepare(

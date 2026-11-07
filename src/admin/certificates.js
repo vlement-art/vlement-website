@@ -1,7 +1,7 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import regularFont from '@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff';
+import boldFont from '@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff';
 import JSZip from 'jszip';
-import QRCode from 'qrcode';
-import { getNfcTagUidLabel } from './certificate-pdf-label';
+import { createCertificatePdf } from './certificate-pdf';
 
 (() => {
   const configUrl = window.CERTIFICATES_API_URL;
@@ -167,13 +167,13 @@ import { getNfcTagUidLabel } from './certificate-pdf-label';
       <div class="row2">
         <div class="field"><label for="certificate-nfc-uid">NFC tag UID (optional)</label>
           <input id="certificate-nfc-uid" maxlength="120" pattern="[A-Za-z0-9._:-]*"
-            value="${escapeHtml(pendingDraft?.request?.nfcTagUid || sourceSnapshot.nfcTagUid || sourceCertificate?.nfc_tag_uid || '')}" placeholder="e.g. 04:A3:2B:C1:D4:E5:F6">
+            value="${escapeHtml(pendingDraft ? (pendingDraft.request.nfcTagUid || '') : (sourceSnapshot.nfcTagUid || sourceCertificate?.nfc_tag_uid || ''))}" placeholder="e.g. 04:A3:2B:C1:D4:E5:F6">
           <span class="hint">Letters, numbers, dots, colons, dashes and underscores only. Reissues keep an existing active matching UID linked.</span>
         </div>
         <div class="field"><label for="certificate-nfc-placement">Tag placement</label>
           <input id="certificate-nfc-placement" maxlength="200"
-            value="${escapeHtml(pendingDraft?.request?.nfcTagPlacement || sourceSnapshot.nfcTagPlacement || sourceCertificate?.nfc_tag_placement || '')}" placeholder="e.g. reverse lower-right corner">
-          <span class="hint">Required when entering a UID. Existing active tags keep their saved placement.</span>
+            value="${escapeHtml(pendingDraft ? (pendingDraft.request.nfcTagPlacement || '') : (sourceSnapshot.nfcTagPlacement || sourceCertificate?.nfc_tag_placement || ''))}" placeholder="e.g. reverse lower-right corner">
+          <span class="hint">Optional. Add a placement to register the tag; a UID without placement is printed only. Existing active tags keep their saved placement.</span>
         </div>
       </div>
       ${reissue || (pendingDraft && sourceCertificate?.status === 'valid') ? `<div class="field"><label for="certificate-reissue-reason">Reason for reissue</label>
@@ -254,9 +254,10 @@ import { getNfcTagUidLabel } from './certificate-pdf-label';
         if (!/^[A-Za-z0-9._:-]+$/.test(nfcTagUid)) {
           throw new Error('Enter an NFC tag UID using letters, numbers, dots, colons, dashes or underscores.');
         }
-        if (!nfcTagPlacement) throw new Error('Enter the NFC tag placement to register this UID.');
         request.nfcTagUid = nfcTagUid;
-        request.nfcTagPlacement = nfcTagPlacement;
+        if (nfcTagPlacement) request.nfcTagPlacement = nfcTagPlacement;
+      } else if (nfcTagPlacement) {
+        throw new Error('Enter an NFC tag UID before specifying its placement.');
       }
       if (reissue || pendingDraft?.certificate?.status === 'valid') {
         request.reason = document.getElementById('certificate-reissue-reason').value.trim();
@@ -307,11 +308,13 @@ import { getNfcTagUidLabel } from './certificate-pdf-label';
 
   async function previewCertificate(certificate, imageFile) {
     try {
+      const jpeg = await prepareCertificateImage(imageFile);
       const pdfBytes = await createCertificatePdf(
         certificate.snapshot,
         certificate.verificationUrl,
         certificate.certificate_number,
-        imageFile,
+        new Uint8Array(await jpeg.arrayBuffer()),
+        { regular: regularFont, bold: boldFont },
       );
       activePreviewUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
       document.getElementById('modal').innerHTML = `
@@ -366,7 +369,7 @@ import { getNfcTagUidLabel } from './certificate-pdf-label';
     }
   }
 
-  async function createCertificatePdf(snapshot, verificationUrl, certificateNumber, sourceImage) {
+  async function prepareCertificateImage(sourceImage) {
     const bitmap = await createImageBitmap(sourceImage);
     const maxEdge = 2200;
     const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
@@ -380,121 +383,7 @@ import { getNfcTagUidLabel } from './certificate-pdf-label';
     const jpeg = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
     if (!jpeg) throw new Error('Your browser could not convert the artwork image for the certificate.');
 
-    const pdf = await PDFDocument.create();
-    pdf.setTitle(`${snapshot.certificateTypeTitle || 'Artwork certificate'} — ${snapshot.title}`);
-    pdf.setAuthor(snapshot.artist || 'Vlement J Rodrigues');
-    pdf.setSubject(`Certificate ${snapshot.title}`);
-    const page = pdf.addPage([595.28, 841.89]);
-    const regular = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const paper = rgb(1, 1, 1);
-    const ink = rgb(0.141, 0.141, 0.122);
-    const drawCenteredText = (text, font, size, x, width, y, options = {}) => {
-      const textWidth = font.widthOfTextAtSize(String(text), size);
-      page.drawText(String(text), {
-        x: x + Math.max(0, (width - textWidth) / 2),
-        y,
-        font,
-        size,
-        color: ink,
-        maxWidth: width,
-        ...options,
-      });
-    };
-    page.drawRectangle({ x: 0, y: 0, width: 595.28, height: 841.89, color: paper });
-    page.drawRectangle({
-      x: 22, y: 22, width: 551.28, height: 797.89,
-      borderColor: rgb(0.4, 0.4, 0.37), borderWidth: 0.8
-    });
-    drawCenteredText('VLEMENT J. RODRIGUES', bold, 12, 214, 185, 777);
-    drawCenteredText(
-      snapshot.certificateTypeTitle || 'Certificate of Authenticity',
-      regular,
-      18,
-      150,
-      296,
-      739,
-    );
-    drawCenteredText(certificateNumber, regular, 9, 250, 90, 117);
-
-    const artworkBytes = new Uint8Array(await jpeg.arrayBuffer());
-    const artworkImage = await pdf.embedJpg(artworkBytes);
-    const imageBox = { x: 185, y: 524, width: 229, height: 162 };
-    const imageScale = Math.min(
-      imageBox.width / artworkImage.width,
-      imageBox.height / artworkImage.height,
-    );
-    const imageWidth = artworkImage.width * imageScale;
-    const imageHeight = artworkImage.height * imageScale;
-    page.drawImage(artworkImage, {
-      x: imageBox.x + (imageBox.width - imageWidth) / 2,
-      y: imageBox.y + (imageBox.height - imageHeight) / 2,
-      width: imageWidth,
-      height: imageHeight
-    });
-
-    const drawField = (label, value, labelX, valueX, y, valueMaxWidth) => {
-      if (value === undefined || value === null || value === '') return;
-      page.drawText(String(label).toUpperCase(), {
-        x: labelX, y, font: bold, size: 7, color: ink, maxWidth: valueX - labelX - 4
-      });
-      page.drawText(String(value), {
-        x: valueX, y: y - 1, font: regular, size: 10, color: ink,
-        maxWidth: valueMaxWidth, lineHeight: 13
-      });
-    };
-
-    drawField('Artwork', snapshot.title, 80, 126, 482, 205);
-    drawField('Medium', snapshot.medium, 345, 382, 482, 145);
-    drawField('Year', snapshot.year, 79, 107, 446, 210);
-    drawField('Dimensions', snapshot.dimensions, 346, 399, 446, 130);
-    const extraFields = [
-      ['Support', snapshot.support],
-      ['Edition', snapshot.editionNumber && snapshot.editionSize
-        ? `${snapshot.editionNumber} of ${snapshot.editionSize}`
-        : snapshot.editionStatement],
-      ['Print date', snapshot.printDate],
-      ['Signed', snapshot.signed ? 'Yes' : null],
-    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
-    extraFields.forEach(([label, value], index) => {
-      const column = index % 2;
-      const row = Math.floor(index / 2);
-      const labelX = column === 0 ? 80 : 345;
-      const valueX = column === 0 ? 126 : 382;
-      const maxWidth = column === 0 ? 205 : 145;
-      drawField(label, value, labelX, valueX, 413 - row * 26, maxWidth);
-    });
-    if (snapshot.certificateWording) {
-      drawCenteredText(snapshot.certificateWording, regular, 9, 72, 451, 30, { lineHeight: 11 });
-    }
-
-    const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
-      errorCorrectionLevel: 'M', margin: 1, width: 240
-    });
-    const qrBytes = Uint8Array.from(atob(qrDataUrl.split(',')[1]), character => character.charCodeAt(0));
-    const qr = await pdf.embedPng(qrBytes);
-    page.drawImage(qr, { x: 253, y: 198, width: 60, height: 60 });
-    drawCenteredText('Scan to verify', regular, 8, 259, 64, 184);
-    drawCenteredText('This certificate is valid only when verified online.', regular, 9, 147, 305, 78);
-    drawCenteredText('VLEMENT.COM/VERIFY', bold, 8, 217, 160, 58);
-    page.drawLine({
-      start: { x: 104, y: 337 }, end: { x: 239, y: 337 },
-      thickness: 0.6, color: rgb(0.52, 0.52, 0.49)
-    });
-    page.drawLine({
-      start: { x: 358, y: 337 }, end: { x: 493, y: 337 },
-      thickness: 0.6, color: rgb(0.52, 0.52, 0.49)
-    });
-    drawCenteredText('Date', regular, 7, 104, 135, 322);
-    drawCenteredText('Artist Signature', regular, 7, 358, 135, 322);
-    const nfcTagUidLabel = getNfcTagUidLabel(snapshot);
-    if (nfcTagUidLabel) {
-      page.drawText(nfcTagUidLabel, {
-        x: 144, y: 169, font: regular, size: 6,
-        color: rgb(0.38, 0.38, 0.36), maxWidth: 109, lineHeight: 8
-      });
-    }
-    return pdf.save({ useObjectStreams: false });
+    return jpeg;
   }
 
   async function revokeCertificate(id) {

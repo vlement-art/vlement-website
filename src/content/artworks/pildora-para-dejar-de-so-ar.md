@@ -8,18 +8,21 @@ dimensions: 42x30cm
 category: Original painting
 collection: Summer 2024
 summary: '#savina,#pastillas para no soñar,#Vlement'
-image: /images/artwork/pildora-para-dejar-de-so-ar.webp
-thumbnail: /images/thumbnails/pildora-para-dejar-de-so-ar.webp
+image: /images/artwork/pildora-para-dejar-de-so-ar-22690093-dda8-43fb-b90b-de5c195b1bc2.webp
+thumbnail: /images/thumbnails/pildora-para-dejar-de-so-ar-4f51769a-c192-4f29-8ecc-704963c24d1a.webp
 altText: A surreal painting of a pill with French lettering
 featured: true
 available: true
 price: £349
 displayOrder: 1
-portraitDownload: /images/downloads/pildora-para-dejar-de-so-ar-portrait.jpg
-signed: false
+signed: true
+landscapeDownload: /images/downloads/pildora-para-dejar-de-so-ar-6e174da3-110f-4361-bfb7-201184b77739.webp
+editionType: original
+support: Canvas panel
 ---
 
 “Ceci n’est pas une pilule pour arrêter de rêver”—French for “This is not a pill to stop dreaming.” The work playfully echoes René Magritte’s famous challenge and Spanish singer Joaquin Savina and his song "Pastillas para no soñar", to the relationship between an image and the thing it represents. Here, the ordinary form of a pill is transformed into a poetic symbol, suggesting imagination, hope, and the refusal to abandon dreams.
+
 
 
 

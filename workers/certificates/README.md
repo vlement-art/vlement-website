@@ -14,9 +14,10 @@ the exact previewed PDF. Editing replaces the pending version while retaining
 the certificate number and verification token. The previous valid version of
 a reissue remains available until the replacement is approved.
 Reissues preserve the previous valid version until the replacement PDF is
-stored and finalized. An optional NFC UID and placement entered at issue or
-reissue are included in the immutable certificate snapshot and PDF; a new tag
-record is registered only when that PDF is finalized. Reissuing with the same
+stored and finalized. An optional NFC UID entered at issue or reissue is
+included in the immutable certificate snapshot and PDF. Supplying a placement
+also registers a new tag when that PDF is finalized; without a placement the
+UID is printed only. Reissuing with the same
 active UID on that certificate reuses the existing tag record without creating
 a duplicate. Tag references are globally unique, including revoked tags, so a
 UID registered to another certificate or a previously revoked tag cannot be
@@ -24,6 +25,18 @@ reused. SHA-256 confirms the bytes served match the stored issuance record; it
 is an integrity check, not a cryptographic signature. Certificate numbers,
 edition allocations, version history, and audit history are not reused or
 deleted.
+
+The PDF shows the matching active artwork code captured when a new certificate
+is issued; if none is available it uses the existing certificate number.
+Reissues retain the artwork code recorded for that certificate version, and
+never rewrite an already issued PDF. The layout embeds Noto Sans under the SIL
+Open Font License; its license is distributed with the admin assets.
+
+To generate local review fixtures, run
+`node scripts/certificate-pdf-samples.mjs <output-directory>`. Run
+`npm run test:pdf` to verify the fixtures' text boundaries and QR codes; this
+test requires `pdftotoppm`, `pdftotext`, `pdfimages`, and `zbarimg`. The fixture
+verification token is synthetic and no database or Worker is contacted.
 
 The public verification response points PDF downloads at the origin serving
 the Worker request. The artwork and verification pages continue to use the

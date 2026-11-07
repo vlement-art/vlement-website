@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 
 const apiUrl = process.env.PUBLIC_CERTIFICATES_API_URL?.trim() || '';
@@ -9,6 +9,7 @@ if (apiUrl && !secureOrigin && !localOrigin) {
 }
 
 await mkdir('public/admin', { recursive: true });
+await copyFile('node_modules/@fontsource/noto-sans/LICENSE', 'public/admin/NOTO-SANS-LICENSE.txt');
 await writeFile(
   'public/admin/certificates-config.js',
   `window.CERTIFICATES_API_URL = ${JSON.stringify(apiUrl)};\n`,
@@ -19,6 +20,7 @@ await build({
   format: 'iife',
   minify: true,
   target: 'es2022',
+  loader: { '.woff': 'binary' },
   outfile: 'public/admin/certificates.js',
 });
 await build({

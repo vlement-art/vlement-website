@@ -53,11 +53,11 @@ describe('certificate requests', () => {
       nfcTagUid: 'not a UID',
       nfcTagPlacement: 'Reverse lower edge',
     })).toThrow('Enter an NFC tag UID');
-    expect(() => validateIssueRequest({
+    expect(validateIssueRequest({
       artwork,
       certificateType: 'original',
-      nfcTagUid: '04:A3:2B:C1:D4:E5:F6',
-    })).toThrow('Enter a valid NFC tag placement');
+      nfcTagUid: ' 04:A3:2B:C1:D4:E5:F6 ',
+    })).toMatchObject({ nfcTagUid: '04:A3:2B:C1:D4:E5:F6' });
   });
 
   it('rejects invalid edition numbers, mismatched types, and unsafe image paths', () => {
@@ -109,6 +109,10 @@ describe('certificate requests', () => {
         Origin: 'https://vlement.com',
       };
       const formData = new FormData();
+      await env.DB.prepare(
+        `INSERT INTO artwork_codes (id, artwork_slug, artwork_code, type, status, created_at)
+         VALUES (?, ?, ?, 'O', 'active', ?)`,
+      ).bind(crypto.randomUUID(), artwork.slug, 'VL-O-A1987', new Date().toISOString()).run();
       formData.append('request', JSON.stringify({
         artwork,
         certificateType: 'original',
@@ -128,12 +132,13 @@ describe('certificate requests', () => {
         verification_token: string;
         verificationUrl: string;
         version_status: string;
-        snapshot: { title: string; nfcTagUid: string; nfcTagPlacement: string };
+        snapshot: { title: string; nfcTagUid: string; nfcTagPlacement: string; artworkCode: string };
       } };
       expect(certificate.version_status).toBe('pending');
       expect(certificate.snapshot.title).toBe(artwork.title);
       expect(certificate.snapshot.nfcTagUid).toBe('04:A3:2B:C1:D4:E5:F6');
       expect(certificate.snapshot.nfcTagPlacement).toBe('Reverse lower edge');
+      expect(certificate.snapshot.artworkCode).toBe('VL-O-A1987');
 
       const replaceForm = new FormData();
       replaceForm.append('request', JSON.stringify({
@@ -156,13 +161,14 @@ describe('certificate requests', () => {
           version_number: number;
           certificate_number: string;
           verification_token: string;
-          snapshot: { title: string };
+          snapshot: { title: string; artworkCode: string };
         };
       };
       expect(editedCertificate.version_number).toBe(2);
       expect(editedCertificate.certificate_number).toBe(certificate.certificate_number);
       expect(editedCertificate.verification_token).toBe(certificate.verification_token);
       expect(editedCertificate.snapshot.title).toBe('Edited test artwork');
+      expect(editedCertificate.snapshot.artworkCode).toBe('VL-O-A1987');
       const pendingVersions = await worker.fetch(new Request(
         `https://certificates.test/api/admin/certificates/${certificate.id}/versions`,
         { headers },
@@ -269,12 +275,13 @@ describe('certificate requests', () => {
           version_id: string;
           version_number: number;
           verification_token: string;
-          snapshot: { nfcTagPlacement: string };
+          snapshot: { nfcTagPlacement: string; artworkCode: string };
         };
       };
       expect(pendingReissue.version_number).toBe(3);
       expect(pendingReissue.snapshot.nfcTagPlacement)
         .toBe('Reverse lower edge');
+      expect(pendingReissue.snapshot.artworkCode).toBe('VL-O-A1987');
       const beforeReissue = await worker.fetch(new Request(
         `https://certificates.test/api/verify?t=${pendingReissue.verification_token}`,
       ), authorizedEnv);

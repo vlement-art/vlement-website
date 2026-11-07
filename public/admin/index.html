@@ -98,8 +98,15 @@
   .card .body { padding: 12px; display: flex; flex-direction: column; gap: 4px; flex: auto; }
   .card .title { font-weight: 600; font-size: 14px; line-height: 1.3; }
   .card .meta { font-size: 12px; color: var(--muted); }
+  .card .code-label { font-size: 12px; font-weight: 600; color: var(--accent); }
   .card .actions { display: flex; gap: 8px; padding: 0 12px 12px; }
   .card .actions .btn { flex: 1; justify-content: center; padding: 6px 10px; font-size: 13px; }
+  .code-manager-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .code-manager-details, .code-manager-controls { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .code-manager-controls { width: min(100%, 220px); }
+  .code-manager-controls select, .code-manager-controls input { width: 100%; }
+  .code-manager-controls .btn { justify-content: center; }
+  .code-label { font-size: 13px; font-weight: 600; color: var(--accent); }
 
   .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
 
@@ -170,6 +177,8 @@
     header.topbar { align-items: flex-start; flex-direction: column; gap: 12px; }
     #topbar-actions { justify-content: flex-start; width: 100%; }
     #topbar-actions .btn { flex: 1 1 auto; justify-content: center; }
+    .code-manager-row { align-items: stretch; flex-direction: column; }
+    .code-manager-controls { width: 100%; }
   }
 </style>
 </head>
@@ -554,6 +563,7 @@ function renderGrid() {
         <div class="title">${escapeHtml(d.title || '(untitled)')}</div>
         <div class="meta">${escapeHtml(d.category || '')}${d.year ? ' · ' + d.year : ''}</div>
         <div class="meta">${d.featured ? 'Featured on homepage' : 'Not featured'} · ${d.available === false ? 'Sold' : 'Available'}</div>
+        <div class="code-label">${escapeHtml(window.VlementAdminArtworkCodes?.getCode(entry.slug)?.artwork_code || 'No artwork code')}</div>
         ${isHero ? `<div class="meta" style="color:var(--accent);font-weight:600">Homepage hero · ${homepageSettings.heroImageField === 'thumbnail' ? 'thumbnail' : 'full-size image'}</div>` : ''}
       </div>
       <div class="actions">
@@ -1021,7 +1031,18 @@ async function saveEntry() {
     setListStatus(`${entries.length} artwork${entries.length === 1 ? '' : 's'}`);
 
     closeModal();
-    showBanner(`Saved "${title}".`, 'info');
+    if (isNew && data.editionType && window.VlementAdminArtworkCodes) {
+      showBanner(`Saved "${title}". Creating its artwork code…`, 'info', 0);
+      window.VlementAdminArtworkCodes.createForArtwork(slug, data.editionType, data.editionSize)
+        .then(code => showBanner(`Saved "${title}" with code ${escapeHtml(code.artwork_code)}.`, 'info'))
+        .catch(err => showBanner(`Saved "${title}", but its code was not created: ${escapeHtml(err.message)} Open Artwork Codes to retry.`, 'error', 0));
+    } else if (isNew && data.editionType) {
+      showBanner(`Saved "${title}", but the artwork-code tool is unavailable. Open Artwork Codes to retry.`, 'error', 0);
+    } else if (isNew) {
+      showBanner(`Saved "${title}". Choose a certificate artwork type to create its code in Artwork Codes.`, 'info', 0);
+    } else {
+      showBanner(`Saved "${title}".`, 'info');
+    }
   } catch (err) {
     errorBox.innerHTML = `<div class="status-banner error">${escapeHtml(err.message)}</div>`;
     saveBtn.disabled = false;
@@ -1063,6 +1084,7 @@ function showApp() {
     <button class="btn" id="certificates-btn">Certificates</button>
     <button class="btn" id="admin-exhibitions-btn">Exhibitions</button>
     <button class="btn" id="sales-btn">Sales</button>
+    <button class="btn" id="artwork-codes-btn">Artwork Codes</button>
     <button class="btn" id="backup-everything-btn">Back up everything</button>
     <button class="btn" id="export-xlsx-btn">Export Excel (.xlsx)</button>
     <button class="btn" id="logout-btn">Sign out</button>
@@ -1073,6 +1095,9 @@ function showApp() {
   });
   document.getElementById('sales-btn').addEventListener('click', () => {
     window.VlementSales.open();
+  });
+  document.getElementById('artwork-codes-btn').addEventListener('click', () => {
+    window.VlementAdminArtworkCodes.open();
   });
   document.getElementById('export-xlsx-btn').addEventListener('click', window.exportArtworksExcel);
   loadEntries().then(() => {
@@ -1092,6 +1117,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 window.VlementAdmin = {
   getEntries: () => entries,
   getToken: () => token,
+  renderGrid,
   updateArtworkAvailability
 };
 
@@ -1105,5 +1131,13 @@ if (token) {
 <script src="certificates-config.js"></script>
 <script src="certificates.js"></script>
 <script src="sales.js"></script>
+<script src="artwork-codes.js"></script>
+<script>
+if (token && window.VlementAdminArtworkCodes) {
+  window.VlementAdminArtworkCodes.load().catch(error => {
+    showBanner(`Artwork codes could not be loaded: ${escapeHtml(error.message)}`, 'error', 0);
+  });
+}
+</script>
 </body>
 </html>

@@ -4,6 +4,7 @@ dist/
 src/env.d.ts
 public/admin/certificates-config.js
 public/admin/certificates.js
+public/admin/artwork-codes.js
 workers/certificates/worker-configuration.d.ts
 
 # dependencies

@@ -11,6 +11,16 @@ artist biography read the same exhibition records. Dates automatically group
 each listing as coming up, on now, or past; changes to `/admin` are published
 through the next site build.
 
+In **Edit Artwork**, **Duplicate** opens an unsaved copy of the current form.
+Choose its certificate artwork type before saving; the new artwork is available
+for sale and receives its own code. The duplicate initially references the same
+images. Each image field has a **Delete picture** button: clearing a new
+selection restores its saved image, while removing a saved image requires
+confirmation and takes effect only on Save. Full-size images and thumbnails
+need replacements before saving; optional download images may be left empty.
+Replacements use new storage paths so shared pictures remain unchanged.
+JPEG photos with EXIF rotation are normalized on upload.
+
 The editor supports artwork dimensions and certificate metadata. Its
 **Certificates** view can issue and reissue certificates, manage NFC tag
 references, revoke certificates or tags, and download a ZIP backup containing

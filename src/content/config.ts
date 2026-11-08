@@ -3,20 +3,20 @@ import { defineCollection, z } from 'astro:content';
 // Every artwork is one Markdown file in src/content/artworks/.
 // The filename (minus .md) becomes the URL slug, e.g. sad-bunny.md -> /work/sad-bunny
 // The Markdown body (below the --- frontmatter ---) is the full description
-// shown on the artwork page; the `summary` field is the short version used
-// on cards and in metadata (e.g. Open Graph description).
+// shown on the artwork page; `summary` is used on cards.
 const artworks = defineCollection({
   type: 'content',
   schema: z.object({
     title: z.string(),
-    year: z.number().int(),
+    year: z.number().int().optional(),
     width: z.number().int().positive(),
     height: z.number().int().positive(),
     medium: z.string(),
-    dimensions: z.string(),
+    dimensions: z.string().default(''),
     category: z.string(),
     collection: z.string(),
     summary: z.string(),
+    seoDescription: z.string().optional(),
     // Path relative to /public, e.g. /images/artwork/sad-bunny.webp
     image: z.string(),
     imageZoom: z.string().optional(),
@@ -40,6 +40,7 @@ const artworks = defineCollection({
     price: z.union([z.string(), z.number()]).optional(),
     editionType: z.enum(['original', 'limited', 'open']).optional(),
     editionSize: z.number().int().positive().optional(),
+    edition: z.string().optional(),
     support: z.string().optional(),
     printDate: z.string().optional(),
     signed: z.boolean().optional(),

@@ -127,3 +127,37 @@ test('saving is blocked when the artwork has no main picture', async () => {
   await vm.runInContext('saveEntry()', context);
   assert.match(context.elements.get('modal-error').innerHTML, /Add a main picture/);
 });
+
+test('saving a duplicate description warns without blocking the save', async () => {
+  const context = await editorContext();
+  vm.runInContext(`
+    ensureYamlLibrary = async () => {};
+    entries = [{ path: 'src/content/artworks/other.md', slug: 'other', data: { title: 'Other & work' }, body: 'Same description.\\n' }];
+    openEditor(null);
+    document.getElementById('f-title').value = 'New work';
+    document.getElementById('f-year').value = '2025';
+    document.getElementById('f-category').value = 'Print';
+    document.getElementById('f-collection').value = 'Luz';
+    document.getElementById('f-body').value = 'Same description.';
+    document.getElementById('f-seoDescription').value = 'Custom SEO';
+    document.getElementById('f-medium').value = '';
+    document.getElementById('f-dimensions').value = '';
+    document.getElementById('f-summary').value = '';
+    document.getElementById('f-price').value = '';
+    document.getElementById('f-support').value = '';
+    document.getElementById('f-printDate').value = '';
+    document.getElementById('f-editionType').value = '';
+    document.getElementById('f-heroImage').value = '';
+    pictureItems = [{ src: '/image.jpg', width: 100, height: 100, alt: '', label: 'other' }];
+    chooseNewSlug = async () => 'new-work';
+    buildFrontmatter = (data, body) => JSON.stringify({ data, body });
+    utf8ToBase64 = value => value;
+    ghPutFile = async (path, content) => { window.saved = { path, content }; return { content: { sha: 'new' } }; };
+    renderGrid = () => {};
+  `, context);
+  await vm.runInContext('saveEntry()', context);
+  assert.ok(context.window.saved, `save reaches the mocked write: ${context.elements.get('modal-error').innerHTML}`);
+  assert.equal(JSON.parse(context.window.saved.content).data.seoDescription, 'Custom SEO');
+  assert.equal(context.elements.get('duplicate-warning').hidden, false);
+  assert.match(context.elements.get('duplicate-warning').textContent, /Another artwork has exactly the same description.*Other & work/);
+});

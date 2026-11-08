@@ -21,6 +21,11 @@ need replacements before saving; optional download images may be left empty.
 Replacements use new storage paths so shared pictures remain unchanged.
 JPEG photos with EXIF rotation are normalized on upload.
 
+The optional **SEO description** replaces the generated search and social
+description for that artwork; leave it blank to generate one from its details.
+Saving an artwork with the same full description as another shows a warning
+after saving, but does not prevent the save or change either description.
+
 The editor keeps dimensions as entered and previews the display conversion
 for two centimetre measurements, in the order entered (for example,
 `42 × 30 cm / 16.54 × 11.81 in`). Other dimension text is shown unchanged.

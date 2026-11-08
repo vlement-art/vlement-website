@@ -5,6 +5,7 @@ import { getCollection } from 'astro:content';
 import { site } from '../../data/site';
 import { artworkEnquiryLink } from '../../lib/artwork-enquiry.mjs';
 import { formatDimensions } from '../../lib/dimensions.mjs';
+import { artworkTitle, artworkDescription } from '../../lib/artwork-seo.mjs';
 
 export async function getStaticPaths() {
   const artworks = (await getCollection('artworks')).sort(
@@ -24,7 +25,8 @@ const { artwork, prev, next } = Astro.props;
 const { Content } = await artwork.render();
 const data = artwork.data;
 
-const title = `${data.title} (${data.year}) — ${site.artistName}`;
+const title = artworkTitle(data);
+const description = artworkDescription(data, artwork.body);
 const pageURL = new URL(`/work/${artwork.slug}`, site.url).toString();
 const imageURL = new URL(data.image, site.url).toString();
 const enquiryLink = artworkEnquiryLink(data, pageURL);
@@ -50,7 +52,7 @@ const structuredData = {
 
 <BaseLayout
   title={title}
-  description={data.summary}
+  description={description}
   ogImage={imageURL}
   canonicalPath={`/work/${artwork.slug}`}
   structuredData={structuredData}

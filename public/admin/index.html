@@ -220,6 +220,7 @@
 
   <div id="app-screen" hidden>
     <div id="banner-area"></div>
+    <div id="duplicate-warning" class="status-banner info" role="status" hidden></div>
     <div style="display:flex; align-items:center; justify-content:space-between;">
       <div id="list-status" style="color:var(--muted); font-size:14px;"></div>
       <div style="display:flex; gap:8px;">
@@ -1288,6 +1289,9 @@ async function saveEntry() {
     const slug = isNew ? await chooseNewSlug(title, duplicateDraft) : currentEntry.slug;
     const mdPath = `${CONTENT_DIR}/${slug}.md`;
     const body = document.getElementById('f-body').value;
+    const duplicates = body.trim() ? entries.filter(entry =>
+      entry.path !== currentEntry?.path && entry.body.trim() === body.trim()
+    ) : [];
     const heroImageField = document.getElementById('f-heroImage').value;
     if (!heroImageField && homepageSettings.heroSlug === slug) {
       throw new Error('Select the main picture to keep the current homepage hero.');
@@ -1403,6 +1407,11 @@ async function saveEntry() {
     setListStatus(`${entries.length} artwork${entries.length === 1 ? '' : 's'}`);
 
     closeModal();
+    const duplicateWarning = document.getElementById('duplicate-warning');
+    duplicateWarning.textContent = duplicates.length
+      ? `Another artwork has exactly the same description. Edit it so each page has unique text. Other artwork: ${duplicates.map(entry => entry.data.title || entry.slug).join(', ')}.`
+      : '';
+    duplicateWarning.hidden = !duplicates.length;
     if (isNew && data.editionType && window.VlementAdminArtworkCodes) {
       showBanner(`Saved "${title}". Creating its artwork code…`, 'info', 0);
       window.VlementAdminArtworkCodes.createForArtwork(slug, data.editionType, data.editionSize)

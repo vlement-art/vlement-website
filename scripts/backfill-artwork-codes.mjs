@@ -24,17 +24,22 @@ export function parseFrontmatter(source) {
 export function proposeRow(slug, data) {
   const title = data.title || slug;
   const type = data.editionType;
-  if (!TYPES.has(type)) {
-    return { slug, title, proposed_type: NEEDS_DECISION, edition_size: '', note: 'No editionType in markdown' };
+  const categoryType = data.category === 'Original painting' ? 'original' : null;
+  const proposedType = TYPES.has(type) ? type : categoryType;
+  if (!proposedType) {
+    const note = data.category === 'Print'
+      ? 'Choose limited or open for this print'
+      : 'No usable editionType or category in markdown';
+    return { slug, title, proposed_type: NEEDS_DECISION, edition_size: '', note };
   }
-  if (type === 'limited') {
+  if (proposedType === 'limited') {
     const size = Number(data.editionSize);
     if (!Number.isInteger(size) || size < 1) {
       return { slug, title, proposed_type: NEEDS_DECISION, edition_size: '', note: 'Limited edition without a valid editionSize' };
     }
-    return { slug, title, proposed_type: type, edition_size: String(size), note: '' };
+    return { slug, title, proposed_type: proposedType, edition_size: String(size), note: '' };
   }
-  return { slug, title, proposed_type: type, edition_size: '', note: '' };
+  return { slug, title, proposed_type: proposedType, edition_size: '', note: '' };
 }
 
 const quote = value => (/[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);

@@ -19,6 +19,14 @@ const artworks = defineCollection({
     summary: z.string(),
     // Path relative to /public, e.g. /images/artwork/sad-bunny.webp
     image: z.string(),
+    imageZoom: z.string().optional(),
+    images: z.array(z.object({
+      src: z.string(),
+      zoomSrc: z.string().optional(),
+      alt: z.string(),
+      label: z.enum(['detail', 'room', 'other']),
+      caption: z.string().optional(),
+    })).max(7).optional(),
     // Path relative to /public, e.g. /images/thumbnails/sad-bunny.webp
     thumbnail: z.string(),
     // Optional high-resolution files offered for download in each orientation.

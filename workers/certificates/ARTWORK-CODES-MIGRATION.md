@@ -28,7 +28,7 @@ npx wrangler d1 execute vlement-certificates-local --local --command "PRAGMA for
 
 ## Backfill existing artworks (`scripts/backfill-artwork-codes.mjs`)
 
-Types are never inferred: artworks without a valid `editionType` (or a limited edition without `editionSize`) are marked `NEEDS DECISION`.
+The dry run uses an existing `editionType` when present. It maps `category: Original painting` to `original`; `category: Print` is not enough to distinguish `limited` from `open`, so those rows are marked `NEEDS DECISION`. A limited edition without a valid `editionSize` is also marked `NEEDS DECISION`.
 
 1. **Dry run** (read-only; no database writes): `npm run codes:backfill -- --dry-run --csv artwork-codes-review.csv`. Optionally set `CERTIFICATES_API_URL` and `VLEMENT_ADMIN_TOKEN` to omit artworks that already have a code.
 2. **Review** the CSV. Replace every `NEEDS DECISION` in `proposed_type` with `original`, `limited` or `open` (limited also needs `edition_size`).

@@ -5,7 +5,12 @@ import { parseCsv, parseFrontmatter, proposeRow, toCsv, validateApprovedRows } f
 test('proposes types from frontmatter and flags unclear ones', () => {
   const fm = parseFrontmatter("---\ntitle: 'A, \"B\"'\neditionType: limited\neditionSize: 50\n---\nbody");
   assert.deepEqual(proposeRow('a', fm), { slug: 'a', title: 'A, "B"', proposed_type: 'limited', edition_size: '50', note: '' });
-  assert.equal(proposeRow('b', { title: 'B' }).proposed_type, 'NEEDS DECISION');
+  assert.deepEqual(proposeRow('b', { title: 'B', category: 'Original painting' }), {
+    slug: 'b', title: 'B', proposed_type: 'original', edition_size: '', note: ''
+  });
+  assert.equal(proposeRow('print', { category: 'Print' }).proposed_type, 'NEEDS DECISION');
+  assert.equal(proposeRow('print', { category: 'Print' }).note, 'Choose limited or open for this print');
+  assert.equal(proposeRow('c', { title: 'C' }).proposed_type, 'NEEDS DECISION');
   assert.equal(proposeRow('c', { editionType: 'limited' }).proposed_type, 'NEEDS DECISION');
 });
 

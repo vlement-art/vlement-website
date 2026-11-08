@@ -23,8 +23,3 @@ portraitDownload: /images/downloads/ballerinas-bd3a8512-46b4-44d6-ba15-58655718a
 
 Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.
 
-
-
-
-
-

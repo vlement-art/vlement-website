@@ -702,7 +702,8 @@ function openEditor(entry, draft = null) {
 
   const modal = document.getElementById('modal');
   modal.innerHTML = `
-    <h2>${isNew ? 'New Artwork' : 'Edit Artwork'}</h2>
+    <h2>${draft ? 'Duplicate Artwork' : isNew ? 'New Artwork' : 'Edit Artwork'}</h2>
+    ${draft ? '<p class="hint" role="status">This is a new, unsaved copy. Your original artwork is unchanged. Review the title and certificate type, then select Save to create the duplicate.</p>' : ''}
 
     <div class="field">
       <label>Title</label>

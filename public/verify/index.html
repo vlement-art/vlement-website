@@ -33,6 +33,7 @@
     <div id="result" aria-live="polite"><p>Checking this certificate…</p></div>
   </main>
   <script src="/admin/certificates-config.js"></script>
+  <script src="/admin/dimensions.js"></script>
   <script>
     const result = document.getElementById('result');
     const token = new URLSearchParams(location.search).get('t');
@@ -63,7 +64,7 @@
             ['Artwork', artwork.title],
             ['Year', artwork.year],
             ['Medium', artwork.medium],
-            ['Dimensions', artwork.dimensions],
+            ['Dimensions', VlementDimensions.formatDimensions(artwork.dimensions)],
             ['Edition', artwork.editionNumber && artwork.editionSize
               ? `${artwork.editionNumber} of ${artwork.editionSize}`
               : artwork.editionType === 'open' ? 'Open edition' : 'Original'],

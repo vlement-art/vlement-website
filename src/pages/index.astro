@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import ArtworkCard from '../components/ArtworkCard.astro';
 import { getCollection } from 'astro:content';
 import { site } from '../data/site';
+import { formatDimensions } from '../lib/dimensions.mjs';
 import ExhibitionDateUpdater from '../components/ExhibitionDateUpdater.astro';
 import homepageSettings from '../data/homepage.json';
 import exhibitionsData from '../data/exhibitions.json';
@@ -57,7 +58,7 @@ const exhibitions = getExhibitionGroups(exhibitionsData);
               {heroArtwork.data.medium}
             </span>
           )}
-          {heroArtwork.data.dimensions && <span>{heroArtwork.data.dimensions}</span>}
+          {heroArtwork.data.dimensions && <span>{formatDimensions(heroArtwork.data.dimensions)}</span>}
         </div>
       </a>
     )}

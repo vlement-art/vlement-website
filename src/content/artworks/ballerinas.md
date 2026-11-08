@@ -3,9 +3,10 @@ title: Ballerinas
 year: 2025
 width: 3456
 height: 5184
-medium: Hahnemühle Photo Rag Giclée
+medium: Oil paint
 dimensions: 42 x 30cm
-category: Print
+category: Original painting
+editionType: original
 collection: Luz
 summary: Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.
 image: /images/artwork/ballerinas.webp
@@ -18,6 +19,5 @@ displayOrder: 50
 ---
 
 Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.
-
 
 

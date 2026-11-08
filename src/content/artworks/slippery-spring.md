@@ -6,6 +6,8 @@ height: 5184
 medium: Hahnemühle Photo Rag Giclée
 dimensions: 42 × 30 cm
 category: Print
+editionType: limited
+editionSize: 50
 collection: Luz
 summary: A seasonal exploration capturing the delicate transition of spring, its ephemeral beauty and subtle complexities
 image: /images/artwork/slippery-spring.webp
@@ -19,7 +21,6 @@ signed: false
 ---
 
 A seasonal exploration that captures the delicate transition of spring with its ephemeral beauty and subtle complexities. Edition of 50. Certificate of authenticity included.
-
 
 
 

@@ -33,7 +33,8 @@ collections:
         name: collection
         widget: select
         options: ["Luz", "Summer 2024", "Yellow Balloon", "Coastal Studies"]
-      - { label: Short summary, name: summary, widget: text, hint: "Used on cards and social previews — 1-2 sentences" }
+      - { label: Short summary, name: summary, widget: text, hint: "Used on cards — 1-2 sentences" }
+      - { label: SEO description, name: seoDescription, widget: text, required: false, hint: "Leave blank to generate automatically" }
       - label: Full-size image
         name: image
         widget: image

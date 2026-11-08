@@ -787,8 +787,13 @@ function openEditor(entry, draft = null) {
     </div>
 
     <div class="field">
-      <label>Short summary <span class="hint">Used on cards and social previews</span></label>
+      <label>Short summary <span class="hint">Used on cards</span></label>
       <textarea id="f-summary" rows="2">${escapeHtml(d.summary || '')}</textarea>
+    </div>
+
+    <div class="field">
+      <label for="f-seoDescription">SEO description <span class="hint">Optional; leave blank to generate automatically</span></label>
+      <textarea id="f-seoDescription" rows="2">${escapeHtml(d.seoDescription || '')}</textarea>
     </div>
 
     <section class="field" aria-labelledby="pictures-heading">
@@ -1159,7 +1164,7 @@ function renderImageField(spec) {
 
 function duplicateArtwork() {
   const fields = ['title', 'year', 'medium', 'dimensions', 'displayOrder', 'width', 'height',
-    'category', 'collection', 'summary', 'altText', 'price', 'editionType', 'editionSize', 'support', 'printDate'];
+    'category', 'collection', 'summary', 'seoDescription', 'altText', 'price', 'editionType', 'editionSize', 'support', 'printDate'];
   const data = Object.fromEntries(fields.map(key => [key, document.getElementById(`f-${key}`).value]));
   data.featured = document.getElementById('f-featured').checked;
   data.signed = document.getElementById('f-signed').checked;
@@ -1329,6 +1334,7 @@ async function saveEntry() {
       category,
       collection,
       summary: document.getElementById('f-summary').value.trim(),
+      seoDescription: document.getElementById('f-seoDescription').value.trim() || undefined,
       image: mainPicture.src,
       imageZoom: mainPicture.zoomSrc || mainPicture.src,
       imageLabel: mainPicture.label,

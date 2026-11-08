@@ -1,6 +1,7 @@
 ---
 import { site } from '../data/site';
 import { artworkEnquiryLink } from '../lib/artwork-enquiry.mjs';
+import { formatDimensions } from '../lib/dimensions.mjs';
 
 interface Props {
   slug: string;
@@ -77,7 +78,7 @@ const enquiryLink = artworkEnquiryLink(
           {medium}
         </p>
       )}
-      {dimensions && <p class="mt-1 text-sm text-muted">{dimensions}</p>}
+      {dimensions && <p class="mt-1 text-sm text-muted">{formatDimensions(dimensions)}</p>}
       <div class="mt-2 flex flex-wrap items-center gap-2 text-[0.65rem] uppercase tracking-[0.14em]">
         <span class={`inline-flex rounded-full border px-2 py-1 ${available ? 'border-accent bg-accent/10 text-accent-dark' : 'border-line bg-surface text-muted'}`}>
           {available ? 'Available' : 'Sold'}

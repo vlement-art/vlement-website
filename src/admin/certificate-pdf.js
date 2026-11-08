@@ -1,6 +1,7 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import QRCode from 'qrcode';
+import { formatDimensions } from '../lib/dimensions.mjs';
 
 const CM = 72 / 2.54;
 const WIDTH = 21 * CM;
@@ -103,7 +104,7 @@ export async function createCertificatePdf(snapshot, verificationUrl, certificat
   field('ARTWORK', snapshot.title, 3.5, 5.8, 14.0, 10.9);
   field('YEAR', snapshot.year, 3.5, 5.8, 15.0, 10.9);
   field('MEDIUM', snapshot.medium, 11.2, 13.9, 14.0, 20.0);
-  field('DIMENSIONS', snapshot.dimensions, 11.2, 13.9, 15.0, 20.0);
+  field('DIMENSIONS', formatDimensions(snapshot.dimensions), 11.2, 13.9, 15.0, 20.0);
 
   const wording = textLines(snapshot.certificateWording || '', regular, 9, 12.5 * CM);
   if (wording.length > 4) throw new Error('Certificate wording is too long for the layout.');

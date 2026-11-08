@@ -217,6 +217,7 @@
 </div>
 
 <script src="/admin/export-excel.js"></script>
+<script src="/admin/dimensions.js"></script>
 <script>
 /* ---------------------------------------------------------------------
    CONFIG — matches config.yml
@@ -645,6 +646,7 @@ function renderGrid() {
       <div class="body">
         <div class="title">${escapeHtml(d.title || '(untitled)')}</div>
         <div class="meta">${escapeHtml(d.category || '')}${d.year ? ' · ' + d.year : ''}</div>
+        ${d.dimensions ? `<div class="meta">${escapeHtml(VlementDimensions.formatDimensions(d.dimensions))}</div>` : ''}
         <div class="meta">${d.featured ? 'Featured on homepage' : 'Not featured'} · ${d.available === false ? 'Sold' : 'Available'}</div>
         <div class="code-label">${escapeHtml(window.VlementAdminArtworkCodes?.getCode(entry.slug)?.artwork_code || 'No artwork code')}</div>
         ${isHero ? `<div class="meta" style="color:var(--accent);font-weight:600">Homepage hero · ${homepageSettings.heroImageField === 'thumbnail' ? 'thumbnail' : 'full-size image'}</div>` : ''}
@@ -718,8 +720,9 @@ function openEditor(entry, draft = null) {
 
     <div class="row2">
       <div class="field">
-        <label>Dimensions</label>
+        <label for="f-dimensions">Dimensions</label>
         <input type="text" id="f-dimensions" value="${escapeHtml(d.dimensions || '')}" placeholder="e.g. 42 × 30 cm">
+        <span class="hint" id="dimensions-preview"></span>
       </div>
       <div class="field">
         <label>Display order</label>
@@ -878,6 +881,14 @@ function openEditor(entry, draft = null) {
       </div>
     </div>
   `;
+
+  const dimensionsInput = document.getElementById('f-dimensions');
+  const dimensionsPreview = document.getElementById('dimensions-preview');
+  const updateDimensionsPreview = () => {
+    dimensionsPreview.textContent = VlementDimensions.formatDimensions(dimensionsInput.value);
+  };
+  dimensionsInput.addEventListener('input', updateDimensionsPreview);
+  updateDimensionsPreview();
 
   for (const spec of imageFieldSpecs) {
     const state = imageFields[spec.key];
@@ -1087,7 +1098,7 @@ async function saveEntry() {
       width,
       height,
       medium: document.getElementById('f-medium').value.trim(),
-      dimensions: document.getElementById('f-dimensions').value.trim(),
+      dimensions: document.getElementById('f-dimensions').value,
       category,
       collection,
       summary: document.getElementById('f-summary').value.trim(),

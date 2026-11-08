@@ -4,6 +4,7 @@ import Lightbox from '../../components/Lightbox.astro';
 import { getCollection } from 'astro:content';
 import { site } from '../../data/site';
 import { artworkEnquiryLink } from '../../lib/artwork-enquiry.mjs';
+import { formatDimensions } from '../../lib/dimensions.mjs';
 
 export async function getStaticPaths() {
   const artworks = (await getCollection('artworks')).sort(
@@ -66,7 +67,7 @@ const structuredData = {
           class="block w-full border-0 bg-transparent p-0"
           data-lightbox-src={data.image}
           data-lightbox-alt={data.altText}
-          data-lightbox-caption={`${data.title}, ${data.year} — ${data.medium}, ${data.dimensions}`}
+          data-lightbox-caption={`${data.title}, ${data.year} — ${data.medium}, ${formatDimensions(data.dimensions)}`}
           aria-label={`View ${data.title} full size`}
         >
           <img
@@ -123,7 +124,7 @@ const structuredData = {
           <dl class="grid grid-cols-2 gap-x-5 gap-y-6 border-y border-line py-7 text-sm sm:mt-8">
             <div>
               <dt class="text-xs uppercase tracking-wide text-muted">Dimensions</dt>
-              <dd class="mt-1">{data.dimensions}</dd>
+              <dd class="mt-1">{formatDimensions(data.dimensions)}</dd>
             </div>
             <div>
               <dt class="text-xs uppercase tracking-wide text-muted">Collection</dt>

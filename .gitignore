@@ -5,6 +5,7 @@ src/env.d.ts
 public/admin/certificates-config.js
 public/admin/certificates.js
 public/admin/artwork-codes.js
+public/admin/dimensions.js
 public/admin/NOTO-SANS-LICENSE.txt
 workers/certificates/worker-configuration.d.ts
 

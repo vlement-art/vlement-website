@@ -26,7 +26,22 @@ npx wrangler d1 migrations apply vlement-certificates-local --local --config wor
 npx wrangler d1 execute vlement-certificates-local --local --command "PRAGMA foreign_key_check" --config workers/certificates/wrangler.jsonc
 ```
 
-The repository currently has no checked-in artwork-code backfill command. Backfill requires a deterministic, reviewed mapping of each markdown artwork's `editionType` (including a manual decision for missing types), followed by links to existing certificates/sales. Generate and review that mapping before any explicit write operation; do not infer missing edition types silently.
+## Backfill existing artworks (`scripts/backfill-artwork-codes.mjs`)
+
+Types are never inferred: artworks without a valid `editionType` (or a limited edition without `editionSize`) are marked `NEEDS DECISION`.
+
+1. **Dry run** (read-only; no database writes): `npm run codes:backfill -- --dry-run --csv artwork-codes-review.csv`. Optionally set `CERTIFICATES_API_URL` and `VLEMENT_ADMIN_TOKEN` to omit artworks that already have a code.
+2. **Review** the CSV. Replace every `NEEDS DECISION` in `proposed_type` with `original`, `limited` or `open` (limited also needs `edition_size`).
+3. **Apply** (only after the production steps below): `CERTIFICATES_API_URL=<worker url> VLEMENT_ADMIN_TOKEN=<GitHub token> npm run codes:backfill -- --apply --csv artwork-codes-review.csv`. It refuses to run while any row is invalid or still `NEEDS DECISION`, skips artworks that already have a code (safe to re-run), and uses the per-type counters (A/B/C).
+
+## Production runbook (operator only)
+
+1. Back up D1 and record the Time Travel bookmark (see "Migration safety" above).
+2. `npx wrangler d1 migrations list <DB_NAME> --remote --config workers/certificates/wrangler.jsonc --env production`
+3. If `0003_artwork_codes` is pending: `npx wrangler d1 migrations apply <DB_NAME> --remote --config workers/certificates/wrangler.jsonc --env production`
+4. Deploy/approve the Worker so `/api/admin/artwork-codes` is live.
+5. Run the backfill dry run, review/approve the CSV, then run `--apply`.
+6. Verify: re-run `--apply` (all rows should say `skip`), and check `/admin` shows a code on every artwork card.
 
 ## Checking for missing creation audit events
 

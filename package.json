@@ -16,6 +16,7 @@
     "test:worker": "vitest run --config workers/certificates/vitest.config.ts",
     "test:pdf": "node --test test/certificate-pdf.test.mjs",
     "test:admin-editor": "node --test test/admin-editor.test.mjs",
+    "test:artwork-card": "npm run build && node --test test/artwork-card-enquiry.test.mjs",
     "test:backfill": "node --test test/backfill-artwork-codes.test.mjs",
     "codes:backfill": "node scripts/backfill-artwork-codes.mjs",
     "typecheck:worker": "wrangler types workers/certificates/worker-configuration.d.ts --env staging --config workers/certificates/wrangler.jsonc && tsc --noEmit --project workers/certificates/tsconfig.json",

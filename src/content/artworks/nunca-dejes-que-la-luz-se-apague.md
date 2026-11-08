@@ -20,11 +20,9 @@ editionSize: 50
 support: Print-Hahnemühle Photo Rag Giclée
 printDate: '2026'
 signed: true
-portraitDownload: /images/downloads/nunca-dejes-que-la-luz-se-apague-00a46453-a79b-4671-acb7-431dd351d90e.jpeg
 ---
 
 A poignant piece that captures the essence of light and hope. Dated August 2026, this is an edition of 50. 
-
 
 
 

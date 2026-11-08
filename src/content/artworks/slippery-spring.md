@@ -19,9 +19,7 @@ price: £110
 displayOrder: 50
 signed: true
 support: Hahnemühle Photo Rag Giclée
-portraitDownload: /images/downloads/slippery-spring-f12b9a92-885e-497a-86ee-91010c24525d.webp
 ---
 
 A seasonal exploration that captures the delicate transition of spring with its ephemeral beauty and subtle complexities. Edition of 50. Certificate of authenticity included.
-
 

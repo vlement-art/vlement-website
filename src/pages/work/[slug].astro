@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import Lightbox from '../../components/Lightbox.astro';
+import ArtworkGallery from '../../components/ArtworkGallery.astro';
 import { getCollection } from 'astro:content';
 import { site } from '../../data/site';
 import { artworkEnquiryLink } from '../../lib/artwork-enquiry.mjs';
@@ -62,23 +62,16 @@ const structuredData = {
 
     <div class="grid items-start gap-8 sm:grid-cols-[1.2fr_0.8fr] sm:gap-16">
       <div class="order-2 sm:order-1">
-        <button
-          type="button"
-          class="block w-full border-0 bg-transparent p-0"
-          data-lightbox-src={data.image}
-          data-lightbox-alt={data.altText}
-          data-lightbox-caption={`${data.title}, ${data.year} — ${data.medium}, ${formatDimensions(data.dimensions)}`}
-          aria-label={`View ${data.title} full size`}
-        >
-          <img
-            src={data.image}
-            alt={data.altText}
-            loading="eager"
-            fetchpriority="high"
-            decoding="async"
-            class="h-auto w-full"
-          />
-        </button>
+        <ArtworkGallery
+          title={data.title}
+          year={data.year}
+          medium={data.medium}
+          dimensions={data.dimensions}
+          image={data.image}
+          imageZoom={data.imageZoom}
+          altText={data.altText}
+          images={data.images}
+        />
         <p class="mt-3 text-xs text-muted">
           &copy; {site.copyrightYear} {site.artistName}. Image shown at reduced resolution; not for reproduction.
         </p>
@@ -155,5 +148,4 @@ const structuredData = {
     </nav>
   </article>
 
-  <Lightbox />
 </BaseLayout>

@@ -21,6 +21,7 @@ test('local samples fit the page, retain text and have scannable vector QR codes
       assert.ok(Math.abs(page.getHeight() - 29.7 * 72 / 2.54) < 0.01);
       const text = execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' });
       assert.match(text, /Soñar/);
+      assert.match(text.replace(/\s+/g, ' '), /42 × 30 cm \/ 16\.54 × 11\.81 in/);
       assert.match(text, /VL-O-A0001/);
       assert.match(text, /NFC UID:/);
       assert.equal(text.includes('04:8B:22:25'), name === 'uid');

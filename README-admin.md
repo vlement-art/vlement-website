@@ -21,7 +21,11 @@ need replacements before saving; optional download images may be left empty.
 Replacements use new storage paths so shared pictures remain unchanged.
 JPEG photos with EXIF rotation are normalized on upload.
 
-The editor supports artwork dimensions and certificate metadata. Its
+The editor keeps dimensions as entered and previews the display conversion
+for two centimetre measurements, in height × width order (for example,
+`42 × 30 cm / 16.54 × 11.81 in`). Other dimension text is shown unchanged.
+Existing issued PDFs remain unchanged; newly generated PDFs use the display
+conversion. Its
 **Certificates** view can issue and reissue certificates, manage NFC tag
 references, revoke certificates or tags, and download a ZIP backup containing
 certificate records and the private R2 files. The certificate interface is

@@ -1,4 +1,8 @@
 ---
+import { site } from '../data/site';
+import { artworkEnquiryLink } from '../lib/artwork-enquiry.mjs';
+import { formatDimensions } from '../lib/dimensions.mjs';
+
 interface Props {
   slug: string;
   title: string;
@@ -11,8 +15,10 @@ interface Props {
   height: number;
   category: string;
   collection: string;
+  editionType?: 'original' | 'limited' | 'open';
+  editionSize?: number;
   available: boolean;
-  price?: string;
+  price?: string | number;
   /** Set true for the first few cards above the fold so their images load eagerly. */
   eager?: boolean;
 }
@@ -29,11 +35,17 @@ const {
   height,
   category,
   collection,
+  editionType,
+  editionSize,
   available,
   price,
   eager = false,
 } = Astro.props;
 const imageWidth = Math.min(100, Math.max(55, Math.sqrt(width / height) * 80));
+const enquiryLink = artworkEnquiryLink(
+  { title, category, editionType, editionSize },
+  new URL(`/work/${slug}`, site.url).toString()
+);
 ---
 
 <article
@@ -66,7 +78,7 @@ const imageWidth = Math.min(100, Math.max(55, Math.sqrt(width / height) * 80));
           {medium}
         </p>
       )}
-      {dimensions && <p class="mt-1 text-sm text-muted">{dimensions}</p>}
+      {dimensions && <p class="mt-1 text-sm text-muted">{formatDimensions(dimensions)}</p>}
       <div class="mt-2 flex flex-wrap items-center gap-2 text-[0.65rem] uppercase tracking-[0.14em]">
         <span class={`inline-flex rounded-full border px-2 py-1 ${available ? 'border-accent bg-accent/10 text-accent-dark' : 'border-line bg-surface text-muted'}`}>
           {available ? 'Available' : 'Sold'}
@@ -75,4 +87,13 @@ const imageWidth = Math.min(100, Math.max(55, Math.sqrt(width / height) * 80));
       </div>
     </div>
   </a>
+  {available && (
+    <a
+      href={enquiryLink}
+      class="mt-2 inline-flex rounded-full border border-ink px-2 py-1 text-[0.65rem] uppercase tracking-[0.14em] hover:bg-ink hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+      aria-label={`Request information about ${title}`}
+    >
+      Request information
+    </a>
+  )}
 </article>

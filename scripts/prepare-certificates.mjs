@@ -15,6 +15,15 @@ await writeFile(
   `window.CERTIFICATES_API_URL = ${JSON.stringify(apiUrl)};\n`,
 );
 await build({
+  entryPoints: ['src/lib/dimensions.mjs'],
+  bundle: true,
+  format: 'iife',
+  globalName: 'VlementDimensions',
+  minify: true,
+  target: 'es2022',
+  outfile: 'public/admin/dimensions.js',
+});
+await build({
   entryPoints: ['src/admin/certificates.js'],
   bundle: true,
   format: 'iife',

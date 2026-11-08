@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import sharp from 'sharp';
+import { formatDimensions } from '../src/lib/dimensions.mjs';
 
 async function editorContext() {
   const html = await readFile('public/admin/index.html', 'utf8');
@@ -12,18 +13,41 @@ async function editorContext() {
   const elements = new Map();
   const context = vm.createContext({
     window: {},
+    VlementDimensions: { formatDimensions },
+    elements,
     sessionStorage: { getItem: () => null },
     document: {
       getElementById(id) {
-        if (!elements.has(id)) elements.set(id, { addEventListener() {} });
+        if (!elements.has(id)) elements.set(id, {
+          value: '',
+          addEventListener(type, handler) { this[`on${type}`] = handler; },
+          replaceChildren() {},
+          append() {},
+        });
         return elements.get(id);
       },
+      createElement: () => ({}),
     },
     DataView, Uint8Array, File, URL, console, setTimeout, clearTimeout,
   });
   vm.runInContext(script, context);
   return context;
 }
+
+test('editor keeps the typed dimensions and updates its display preview', async () => {
+  const context = await editorContext();
+  vm.runInContext(`
+    document.getElementById('f-dimensions').value = '42 X 30 cm';
+    openEditor({ slug: 'sold-painting', data: { dimensions: '42 X 30 cm' }, body: '' });
+  `, context);
+  assert.match(context.elements.get('modal').innerHTML, /value="42 X 30 cm"/);
+  assert.equal(context.elements.get('dimensions-preview').textContent, '42 × 30 cm / 16.54 × 11.81 in');
+  const input = context.elements.get('f-dimensions');
+  input.value = '42.5x30cm';
+  input.oninput();
+  assert.equal(context.elements.get('dimensions-preview').textContent, '42.5 × 30 cm / 16.73 × 11.81 in');
+  assert.equal(input.value, '42.5x30cm');
+});
 
 test('duplicate slugs skip existing files and assigned artwork codes', async () => {
   const context = await editorContext();

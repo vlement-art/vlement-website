@@ -15,10 +15,13 @@ featured: true
 available: true
 price: £1,500
 displayOrder: 1
-signed: false
+signed: true
+editionType: original
+support: Oil on MDF
 ---
 
 This work responds to the emotional weight of misinterpretation. The rabbit becomes a symbol of quiet vulnerability, expressing the desire to be understood rather than defined by the perceptions of others. Original work, one of one. Certificate of authenticity included.
+
 
 
 

@@ -12,7 +12,7 @@ image: /images/artwork/ballerinas.webp
 thumbnail: /images/artwork/ballerinas.webp
 altText: Two dancers appear suspended in a moment of exuberant movement, their outstretched arms and sweeping costumes creating a sense of flight
 featured: false
-available: false
+available: true
 price: £220
 displayOrder: 1
 editionType: original

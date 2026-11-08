@@ -4,7 +4,7 @@ year: 2026
 width: 3456
 height: 5184
 medium: Print-Hahnemühle Photo Rag Giclée
-dimensions: 42 × 30 cm
+dimensions: 30 × 42cm
 category: Print
 collection: Luz
 summary: A reminder to hold onto light and hope, presented as a Hahnemühle Photo Rag Giclée print
@@ -23,6 +23,7 @@ signed: true
 ---
 
 A poignant piece that captures the essence of light and hope. Dated August 2026, this is an edition of 50. 
+
 
 
 

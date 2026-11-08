@@ -4,7 +4,7 @@ year: 2025
 width: 3456
 height: 5184
 medium: Print-Hahnemühle Photo Rag Giclée
-dimensions: 40 x 50cm
+dimensions: 30 x 42cm
 category: Print
 collection: Luz
 summary: Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.

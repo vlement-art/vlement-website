@@ -13,11 +13,12 @@ thumbnail: /images/thumbnails/la-luz.webp
 altText: Still Life Painting of a Red Book, Candle, and Hanging Lightbulb
 featured: true
 available: true
-price: £260
+price: £110
 displayOrder: 50
 signed: true
-editionType: original
-support: Oil on Canvas Panel
+editionType: limited
+support: Hahnemühle Photo Rag Giclée
+editionSize: 50
 ---
 
 A quiet study in light and shadow: a worn red book, a pencil, a candle, and a lone bulb illuminate a wooden table against the darkness.

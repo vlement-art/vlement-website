@@ -22,7 +22,7 @@ Replacements use new storage paths so shared pictures remain unchanged.
 JPEG photos with EXIF rotation are normalized on upload.
 
 The editor keeps dimensions as entered and previews the display conversion
-for two centimetre measurements, in height × width order (for example,
+for two centimetre measurements, in the order entered (for example,
 `42 × 30 cm / 16.54 × 11.81 in`). Other dimension text is shown unchanged.
 Existing issued PDFs remain unchanged; newly generated PDFs use the display
 conversion. Its
@@ -31,6 +31,15 @@ references, revoke certificates or tags, and download a ZIP backup containing
 certificate records and the private R2 files. The certificate interface is
 available only after the Cloudflare Worker has been configured; see
 [`workers/certificates/README.md`](workers/certificates/README.md).
+
+For a saved artwork, **Print label** downloads an editable A5 Word document in
+your browser. Auto orientation uses the picture's proportions; choose Landscape
+or Portrait to override it. The label uses the saved artwork, not unsaved edits.
+No certificate service or database is used. If the public artwork page is not
+yet available, the editor warns that its QR link may not work. Printed QR codes
+use the artwork's saved slug and stop working if that URL changes.
+Label rendering tests (`npm run test:label`) require LibreOffice Writer,
+Python's UNO bindings, Poppler tools and `zbarimg`.
 
 Issuing or reissuing can optionally include an NFC tag UID and placement. The
 UID is printed in small type on the PDF and registered to the certificate when

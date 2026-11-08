@@ -158,7 +158,9 @@
     display: flex; justify-content: space-between; align-items: center;
     margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line);
   }
-  .modal-footer .right { display: flex; gap: 8px; }
+  .modal-footer .right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .label-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .modal-footer { flex-wrap: wrap; gap: 10px; }
 
   .status-banner {
     font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px;
@@ -871,12 +873,18 @@ function openEditor(entry, draft = null) {
       <textarea id="f-body" rows="6">${escapeHtml(draft ? draft.body : entry ? entry.body : '')}</textarea>
     </div>
 
+    <div id="label-status" role="status"></div>
     <div id="modal-error"></div>
 
     <div class="modal-footer">
       <button class="btn" id="cancel-btn">Cancel</button>
       <div class="right">
-        ${currentEntry ? '<button class="btn" id="duplicate-btn" type="button">Duplicate</button>' : ''}
+        ${currentEntry ? `<button class="btn" id="duplicate-btn" type="button">Duplicate</button>
+          <div class="label-controls">
+            <label for="label-orientation">Orientation:</label>
+            <select id="label-orientation"><option value="auto">Auto</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
+            <button class="btn" id="print-label-btn" type="button">Print label</button>
+          </div>` : ''}
         <button class="btn primary" id="save-btn">Save</button>
       </div>
     </div>
@@ -923,6 +931,29 @@ function openEditor(entry, draft = null) {
   });
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('duplicate-btn')?.addEventListener('click', duplicateArtwork);
+  document.getElementById('print-label-btn')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    const status = document.getElementById('label-status');
+    button.disabled = true;
+    status.textContent = 'Preparing label from the saved artwork…';
+    try {
+      if (!window.VlementPrintLabel) throw new Error('The label tool is unavailable. Reload the page and try again.');
+      const notice = await window.VlementPrintLabel.download(currentEntry, document.getElementById('label-orientation').value, async path => {
+        const file = await ghGetFile(path);
+        if (file && !file.content && file.sha) {
+          const response = await ghRequest(`/git/blobs/${encodeURIComponent(file.sha)}`);
+          if (!response.ok) throw new Error('Could not load the saved artwork image from GitHub.');
+          return response.json();
+        }
+        return file;
+      });
+      status.textContent = notice || 'Label downloaded. It uses the saved artwork; save changes before printing a new label.';
+    } catch (error) {
+      status.textContent = `Could not create the label: ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
   document.getElementById('save-btn').addEventListener('click', saveEntry);
 
   document.getElementById('modal-overlay').hidden = false;
@@ -1277,6 +1308,7 @@ if (token) {
 <script src="certificates.js"></script>
 <script src="sales.js"></script>
 <script src="artwork-codes.js"></script>
+<script src="print-label.js"></script>
 <script>
 if (token && window.VlementAdminArtworkCodes) {
   window.VlementAdminArtworkCodes.load().catch(error => {

@@ -40,3 +40,11 @@ await build({
   target: 'es2022',
   outfile: 'public/admin/artwork-codes.js',
 });
+await build({
+  entryPoints: ['src/admin/print-label.js'],
+  bundle: true,
+  format: 'iife',
+  minify: true,
+  target: 'es2022',
+  outfile: 'public/admin/print-label.js',
+});

@@ -16,13 +16,15 @@ interface Props {
   dimensions: string;
   image: string;
   imageZoom?: string;
+  imageLabel?: 'detail' | 'room' | 'other';
+  imageCaption?: string;
   altText: string;
   images?: Array<{ src: string; zoomSrc?: string; alt: string; label: 'detail' | 'room' | 'other'; caption?: string }>;
 }
 
-const { title, year, medium, dimensions, image, imageZoom, altText, images = [] } = Astro.props;
+const { title, year, medium, dimensions, image, imageZoom, imageLabel, imageCaption, altText, images = [] } = Astro.props;
 const pictures: Picture[] = [
-  { src: image, zoomSrc: imageZoom || image, alt: altText, label: 'main' },
+  { src: image, zoomSrc: imageZoom || image, alt: altText, label: imageLabel || 'main', caption: imageCaption },
   ...images.map(picture => ({
     src: picture.src,
     zoomSrc: picture.zoomSrc || picture.src,
@@ -40,19 +42,18 @@ const labelName = (picture: Picture) => picture.label === 'main'
 <div class="artwork-gallery" data-artwork-gallery>
   <button
     type="button"
-    class="artwork-gallery-main"
+    class:list={['artwork-gallery-main', { 'artwork-gallery-main--framed': pictures.length > 1 }]}
     aria-label={`Open full-screen viewer for ${title}`}
     data-gallery-open
     data-src={pictures[0].src}
     data-zoom-src={pictures[0].zoomSrc}
     data-alt={pictures[0].alt}
-    data-caption={`${title}, ${year} — ${medium}, ${formatDimensions(dimensions)}`}
+    data-caption={caption(pictures[0]) || `${title}, ${year} — ${medium}, ${formatDimensions(dimensions)}`}
+    data-label={labelName(pictures[0]) || 'Artwork'}
   >
     <img
       data-gallery-main-image
       src={pictures[0].src}
-      srcset={pictures[0].zoomSrc !== pictures[0].src ? `${pictures[0].src} 1600w, ${pictures[0].zoomSrc} 3000w` : undefined}
-      sizes="(max-width: 640px) 100vw, 55vw"
       alt={pictures[0].alt}
       loading="eager"
       fetchpriority="high"
@@ -98,23 +99,28 @@ const labelName = (picture: Picture) => picture.label === 'main'
 
 <style>
   .artwork-gallery-main {
-    display: flex;
+    display: block;
     width: 100%;
-    height: min(76vh, 58rem);
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
     border: 0;
-    background: #efede8;
+    background: transparent;
     padding: 0;
     touch-action: pan-y;
   }
   .artwork-gallery-main img {
     display: block;
     width: 100%;
-    height: 100%;
+    height: auto;
     object-fit: contain;
   }
+  .artwork-gallery-main--framed {
+    display: flex;
+    height: min(76vh, 58rem);
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #efede8;
+  }
+  .artwork-gallery-main--framed img { height: 100%; }
   .artwork-gallery-thumbnails {
     display: flex;
     gap: 0.6rem;
@@ -189,7 +195,7 @@ const labelName = (picture: Picture) => picture.label === 'main'
   }
   .artwork-viewer-caption [data-viewer-label]:empty { display: none; }
   @media (max-width: 640px) {
-    .artwork-gallery-main { height: min(65vh, 42rem); }
+    .artwork-gallery-main--framed { height: min(65vh, 42rem); }
     .artwork-gallery-thumb { width: 4rem; height: 4rem; }
   }
 </style>
@@ -203,6 +209,15 @@ const labelName = (picture: Picture) => picture.label === 'main'
     const viewerImage = gallery.querySelector('[data-viewer-image]');
     const label = gallery.querySelector('[data-viewer-label]');
     const caption = gallery.querySelector('[data-viewer-caption]');
+    const mainPicture = {
+      dataset: {
+        src: mainButton.dataset.src,
+        zoomSrc: mainButton.dataset.zoomSrc,
+        alt: mainButton.dataset.alt,
+        caption: mainButton.dataset.caption,
+        label: mainButton.dataset.label,
+      },
+    };
     let active = 0;
     let scale = 1;
     let x = 0;
@@ -225,7 +240,7 @@ const labelName = (picture: Picture) => picture.label === 'main'
 
     function select(index) {
       active = (index + thumbs.length + 1) % (thumbs.length + 1);
-      const item = active === 0 ? mainButton : thumbs[active - 1];
+      const item = active === 0 ? mainPicture : thumbs[active - 1];
       const zoomSrc = item.dataset.zoomSrc || item.dataset.src;
       mainImage.src = item.dataset.src;
       mainButton.dataset.zoomSrc = zoomSrc;
@@ -233,7 +248,6 @@ const labelName = (picture: Picture) => picture.label === 'main'
       mainButton.dataset.caption = item.dataset.caption || '';
       mainButton.dataset.label = item.dataset.label || 'Artwork';
       mainImage.alt = item.dataset.alt;
-      mainImage.srcset = zoomSrc !== item.dataset.src ? `${item.dataset.src} 1600w, ${zoomSrc} 3000w` : '';
       thumbs.forEach((thumb, thumbIndex) => thumb.setAttribute('aria-pressed', String(thumbIndex === active - 1)));
       mainButton.setAttribute('aria-label', `Open full-screen viewer for ${mainImage.alt || 'artwork'}`);
     }
@@ -243,9 +257,8 @@ const labelName = (picture: Picture) => picture.label === 'main'
       resetZoom();
       viewerImage.src = mainButton.dataset.zoomSrc;
       viewerImage.alt = mainButton.dataset.alt;
-      const selected = index === 0 ? null : thumbs[index - 1];
-      label.textContent = selected?.dataset.label || 'Artwork';
-      caption.textContent = selected?.dataset.caption || '';
+      label.textContent = mainButton.dataset.label || 'Artwork';
+      caption.textContent = mainButton.dataset.caption || '';
       gallery.querySelector('[data-viewer-prev]').hidden = thumbs.length === 0;
       gallery.querySelector('[data-viewer-next]').hidden = thumbs.length === 0;
     }

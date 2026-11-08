@@ -20,6 +20,8 @@ const artworks = defineCollection({
     // Path relative to /public, e.g. /images/artwork/sad-bunny.webp
     image: z.string(),
     imageZoom: z.string().optional(),
+    imageLabel: z.enum(['detail', 'room', 'other']).optional(),
+    imageCaption: z.string().optional(),
     images: z.array(z.object({
       src: z.string(),
       zoomSrc: z.string().optional(),

@@ -153,6 +153,24 @@
   }
   .image-field .preview img { width: 100%; height: 100%; object-fit: contain; }
   .image-field .preview span { font-size: 10px; color: var(--muted); }
+  #pictures-upload { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  #pictures-upload:focus-visible + label { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #pictures-upload:disabled + label { opacity: .5; cursor: default; }
+  .pictures-list { display: grid; gap: 10px; }
+  .picture-item { display: grid; grid-template-columns: 90px minmax(0,1fr) auto; gap: 10px; align-items: start; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--panel); }
+  .picture-preview { display: grid; width: 90px; height: 90px; place-items: center; overflow: hidden; background: #eee; }
+  .picture-preview img { width: 100%; height: 100%; object-fit: contain; }
+  .picture-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .picture-fields label { display: grid; gap: 4px; font-size: 12px; }
+  .picture-fields input, .picture-fields select { min-width: 0; width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 6px; background: white; }
+  .picture-actions { display: grid; gap: 6px; }
+  .picture-size { grid-column: 2 / -1; color: var(--muted); font-size: 12px; }
+  @media (max-width: 640px) {
+    .picture-item { grid-template-columns: 64px minmax(0,1fr); }
+    .picture-preview { width: 64px; height: 64px; }
+    .picture-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
+    .picture-fields { grid-template-columns: 1fr; }
+  }
 
   .modal-footer {
     display: flex; justify-content: space-between; align-items: center;
@@ -220,6 +238,7 @@
 
 <script src="/admin/export-excel.js"></script>
 <script src="/admin/dimensions.js"></script>
+<script src="/admin/artwork-pictures.js"></script>
 <script>
 /* ---------------------------------------------------------------------
    CONFIG — matches config.yml
@@ -675,9 +694,8 @@ let currentEntry = null;
 let editorData = {};
 let duplicateDraft = false;
 let imageFields = {};
+let pictureItems = [];
 const imageFieldSpecs = [
-  { key: 'image', id: 'image', directory: IMAGE_DIR, prefix: IMAGE_PUBLIC_PREFIX },
-  { key: 'thumbnail', id: 'thumb', directory: THUMB_DIR, prefix: THUMB_PUBLIC_PREFIX },
   { key: 'portraitDownload', id: 'portrait-download', directory: DOWNLOAD_DIR, prefix: DOWNLOAD_PUBLIC_PREFIX },
   { key: 'landscapeDownload', id: 'landscape-download', directory: DOWNLOAD_DIR, prefix: DOWNLOAD_PUBLIC_PREFIX }
 ];
@@ -691,6 +709,19 @@ function openEditor(entry, draft = null) {
   imageFields = Object.fromEntries(imageFieldSpecs.map(({ key }) => [
     key, { saved: d[key] || '', file: draft?.files[key] || null, url: null }
   ]));
+  pictureItems = [
+    ...(d.image || draft?.mainFile ? [{
+      id: crypto.randomUUID(), src: d.image, zoomSrc: d.imageZoom || d.image,
+      alt: d.altText || '', label: d.imageLabel || 'other', caption: d.imageCaption || '',
+      file: draft?.mainFile || null, url: draft?.mainFile ? URL.createObjectURL(draft.mainFile) : null,
+      width: Number(d.width) || 0, height: Number(d.height) || 0,
+    }] : []),
+    ...(Array.isArray(d.images) ? d.images.map(picture => ({
+      id: crypto.randomUUID(), src: picture.src, zoomSrc: picture.zoomSrc || picture.src,
+      alt: picture.alt || '', label: picture.label, caption: picture.caption || '',
+      file: null, url: null, width: 0, height: 0,
+    })) : []),
+  ];
   const isNew = !currentEntry;
   const selectedCategory = d.category || '';
   const selectedCollection = d.collection || '';
@@ -734,17 +765,6 @@ function openEditor(entry, draft = null) {
 
     <div class="row2">
       <div class="field">
-        <label>Image width (pixels)</label>
-        <input type="number" id="f-width" value="${d.width ?? ''}" min="1">
-      </div>
-      <div class="field">
-        <label>Image height (pixels)</label>
-        <input type="number" id="f-height" value="${d.height ?? ''}" min="1">
-      </div>
-    </div>
-
-    <div class="row2">
-      <div class="field">
         <label>Category</label>
         <div style="display:flex;gap:8px">
           <select id="f-category" style="flex:1">
@@ -771,23 +791,14 @@ function openEditor(entry, draft = null) {
       <textarea id="f-summary" rows="2">${escapeHtml(d.summary || '')}</textarea>
     </div>
 
-    <div class="field">
-      <label for="f-image">Full-size image</label>
-      <div class="image-field">
-        <div class="preview" id="preview-image"></div>
-        <input type="file" id="f-image" accept="image/*">
-        <button class="btn" type="button" id="delete-image" aria-label="Delete full-size picture">Delete picture</button>
-      </div>
-    </div>
-
-    <div class="field">
-      <label for="f-thumb">Thumbnail <span class="hint">Smaller/cropped version for gallery cards</span></label>
-      <div class="image-field">
-        <div class="preview" id="preview-thumb"></div>
-        <input type="file" id="f-thumb" accept="image/*">
-        <button class="btn" type="button" id="delete-thumb" aria-label="Delete thumbnail picture">Delete picture</button>
-      </div>
-    </div>
+    <section class="field" aria-labelledby="pictures-heading">
+      <label id="pictures-heading">Pictures</label>
+      <span class="hint">Main picture first, then extras. JPG, PNG, or WebP; maximum 20 MB per picture and 8 pictures total.</span>
+      <div id="pictures-list" class="pictures-list"></div>
+      <input id="pictures-upload" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-describedby="pictures-error">
+      <label class="btn" for="pictures-upload">Add pictures</label>
+      <div class="hint" id="pictures-error" role="status"></div>
+    </section>
 
     <div class="field">
       <label for="f-portrait-download">Portrait download <span class="hint">Optional high-resolution file</span></label>
@@ -811,15 +822,10 @@ function openEditor(entry, draft = null) {
       <label for="f-heroImage">Hero picture</label>
       <select id="f-heroImage">
         <option value="" ${selectedHeroField ? 'disabled' : ''}>Not the homepage hero</option>
-        ${d.image || isNew ? `<option value="image" ${selectedHeroField === 'image' ? 'selected' : ''}>Use the full-size image</option>` : ''}
-        ${d.thumbnail || isNew ? `<option value="thumbnail" ${selectedHeroField === 'thumbnail' ? 'selected' : ''}>Use the thumbnail image</option>` : ''}
+        ${pictureItems.length ? `<option value="image" ${selectedHeroField === 'image' ? 'selected' : ''}>Use the main picture</option>` : ''}
+        ${pictureItems.length ? `<option value="thumbnail" ${selectedHeroField === 'thumbnail' ? 'selected' : ''}>Use the main picture thumbnail</option>` : ''}
       </select>
       <span class="hint">Choosing an image here replaces the current homepage hero selection.</span>
-    </div>
-
-    <div class="field">
-      <label>Alt text</label>
-      <input type="text" id="f-altText" value="${escapeHtml(d.altText || '')}" placeholder="Describe the image for screen readers/SEO">
     </div>
 
     <div class="row2">
@@ -898,6 +904,13 @@ function openEditor(entry, draft = null) {
   dimensionsInput.addEventListener('input', updateDimensionsPreview);
   updateDimensionsPreview();
 
+  renderPictureItems();
+  document.getElementById('pictures-upload').addEventListener('change', event => {
+    addPictures(event.target.files).catch(error => {
+      document.getElementById('pictures-error').textContent = error.message;
+    });
+    event.target.value = '';
+  });
   for (const spec of imageFieldSpecs) {
     const state = imageFields[spec.key];
     document.getElementById(`f-${spec.id}`).addEventListener('change', event => {
@@ -963,6 +976,165 @@ function releaseImagePreviews() {
   for (const state of Object.values(imageFields)) {
     if (state.url) URL.revokeObjectURL(state.url);
   }
+  for (const picture of pictureItems) {
+    if (picture.url) URL.revokeObjectURL(picture.url);
+  }
+}
+
+function renderPictureItems() {
+  const list = document.getElementById('pictures-list');
+  if (!list) return;
+  list.replaceChildren();
+  pictureItems.forEach((picture, index) => {
+    const item = document.createElement('div');
+    item.className = 'picture-item';
+    item.draggable = true;
+    item.dataset.index = String(index);
+    item.addEventListener('dragstart', event => {
+      event.dataTransfer?.setData('text/plain', String(index));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragover', event => event.preventDefault());
+    item.addEventListener('drop', event => {
+      event.preventDefault();
+      const from = Number(event.dataTransfer?.getData('text/plain'));
+      const to = Number(item.dataset.index);
+      if (!Number.isInteger(from) || from < 0 || from >= pictureItems.length || from === to) return;
+      const [moved] = pictureItems.splice(from, 1);
+      pictureItems.splice(to, 0, moved);
+      renderPictureItems();
+      refreshHeroImageOptions();
+    });
+
+    const preview = document.createElement('div');
+    preview.className = 'picture-preview';
+    const image = document.createElement('img');
+    image.alt = '';
+    const pictureSource = picture.url || picture.src;
+    if (pictureSource) image.src = pictureSource;
+    const orientation = document.createElement('span');
+    orientation.className = 'picture-size';
+    const updateOrientation = (width, height) => {
+      if (width > 0 && height > 0) {
+        picture.width = width;
+        picture.height = height;
+        orientation.textContent = `${width > height ? 'Landscape' : width < height ? 'Portrait' : 'Square'} · ${width} × ${height} px`;
+      } else {
+        orientation.textContent = 'Orientation unavailable';
+      }
+    };
+    image.addEventListener('load', () => updateOrientation(image.naturalWidth, image.naturalHeight));
+    if (picture.width && picture.height) updateOrientation(picture.width, picture.height);
+    preview.append(image);
+
+    const fields = document.createElement('div');
+    fields.className = 'picture-fields';
+    const labelField = (title, control) => {
+      const label = document.createElement('label');
+      label.textContent = title;
+      label.append(control);
+      fields.append(label);
+    };
+    const alt = document.createElement('input');
+    alt.type = 'text';
+    alt.value = picture.alt;
+    alt.setAttribute('aria-label', `Picture ${index + 1} alt text`);
+    alt.addEventListener('input', () => { picture.alt = alt.value; });
+    labelField('Alt text', alt);
+
+    const kind = document.createElement('select');
+    kind.setAttribute('aria-label', `Picture ${index + 1} label`);
+    for (const [value, title] of [['detail', 'Detail'], ['room', 'Room view'], ['other', 'Other']]) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = title;
+      option.selected = picture.label === value;
+      kind.append(option);
+    }
+    kind.addEventListener('change', () => { picture.label = kind.value; });
+    labelField('Label', kind);
+
+    const caption = document.createElement('input');
+    caption.type = 'text';
+    caption.value = picture.caption || '';
+    caption.setAttribute('aria-label', `Picture ${index + 1} caption`);
+    caption.addEventListener('input', () => { picture.caption = caption.value; });
+    labelField('Caption', caption);
+
+    const actions = document.createElement('div');
+    actions.className = 'picture-actions';
+    const mainTag = document.createElement('strong');
+    mainTag.textContent = index === 0 ? 'Main picture' : '';
+    actions.append(mainTag);
+    for (const [direction, offset] of [['Move up', -1], ['Move down', 1]]) {
+      const target = index + offset;
+      if (target < 0 || target >= pictureItems.length) continue;
+      const move = document.createElement('button');
+      move.type = 'button';
+      move.className = 'btn';
+      move.textContent = direction;
+      move.addEventListener('click', () => {
+        [pictureItems[index], pictureItems[target]] = [pictureItems[target], pictureItems[index]];
+        renderPictureItems();
+        refreshHeroImageOptions();
+      });
+      actions.append(move);
+    }
+    if (index > 0) {
+      const makeMain = document.createElement('button');
+      makeMain.type = 'button';
+      makeMain.className = 'btn';
+      makeMain.textContent = 'Make main';
+      makeMain.addEventListener('click', () => {
+        pictureItems.splice(index, 1);
+        pictureItems.unshift(picture);
+        renderPictureItems();
+        refreshHeroImageOptions();
+      });
+      actions.append(makeMain);
+    }
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn danger';
+    remove.textContent = 'Delete';
+    remove.addEventListener('click', () => {
+      if (!confirm('Remove this picture from the artwork? The image file will remain stored.')) return;
+      if (picture.url) URL.revokeObjectURL(picture.url);
+      pictureItems.splice(index, 1);
+      renderPictureItems();
+      refreshHeroImageOptions();
+    });
+    actions.append(remove);
+    item.append(preview, fields, actions, orientation);
+    list.append(item);
+  });
+  document.getElementById('pictures-upload').disabled = pictureItems.length >= 8;
+}
+
+async function addPictures(files) {
+  const error = document.getElementById('pictures-error');
+  error.textContent = '';
+  const selected = window.VlementPictures.validatePictureFiles(files, pictureItems.length);
+  const inspected = await Promise.all(selected.map(async file => {
+    const { width, height } = await window.VlementPictures.inspectPicture(file);
+    return {
+      id: crypto.randomUUID(), src: '', zoomSrc: '', alt: '', label: 'detail',
+      caption: '', file, width, height,
+    };
+  }));
+  const additions = inspected.map(picture => ({ ...picture, url: URL.createObjectURL(picture.file) }));
+  pictureItems.push(...additions);
+  renderPictureItems();
+  refreshHeroImageOptions();
+}
+
+function pictureDimensions(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error('Could not read the selected main picture dimensions. Choose a different picture.'));
+    image.src = src;
+  });
 }
 
 function renderImageField(spec) {
@@ -977,28 +1149,10 @@ function renderImageField(spec) {
     image.alt = '';
     image.src = source;
     preview.append(image);
-    if (spec.key === 'image' && state.file) {
-      image.onload = () => {
-        if (imageFields.image === state && state.url === source) {
-          document.getElementById('f-width').value = image.naturalWidth;
-          document.getElementById('f-height').value = image.naturalHeight;
-        }
-      };
-      image.onerror = () => {
-        document.getElementById('modal-error').textContent = 'The selected artwork image could not be read. Choose a valid image file.';
-      };
-    } else if (spec.key === 'image' && state.saved) {
-      document.getElementById('f-width').value = editorData.width ?? '';
-      document.getElementById('f-height').value = editorData.height ?? '';
-    }
   } else {
     const empty = document.createElement('span');
     empty.textContent = 'none';
     preview.append(empty);
-    if (spec.key === 'image') {
-      document.getElementById('f-width').value = '';
-      document.getElementById('f-height').value = '';
-    }
   }
   document.getElementById(`delete-${spec.id}`).disabled = !source;
 }
@@ -1010,22 +1164,37 @@ function duplicateArtwork() {
   data.featured = document.getElementById('f-featured').checked;
   data.signed = document.getElementById('f-signed').checked;
   data.available = true;
+  const mainPicture = pictureItems[0];
+  if (mainPicture) {
+    Object.assign(data, {
+      image: mainPicture.src || undefined,
+      imageZoom: mainPicture.zoomSrc || undefined,
+      imageLabel: mainPicture.label,
+      imageCaption: mainPicture.caption || undefined,
+      thumbnail: mainPicture.src || undefined,
+      altText: mainPicture.alt,
+      width: mainPicture.width,
+      height: mainPicture.height,
+    });
+  }
+  data.images = undefined;
   const files = {};
   for (const { key } of imageFieldSpecs) {
     data[key] = imageFields[key].saved;
     files[key] = imageFields[key].file;
   }
-  openEditor(null, { data, files, body: document.getElementById('f-body').value });
+  openEditor(null, { data, files, mainFile: mainPicture?.file || null, body: document.getElementById('f-body').value });
 }
 
 function refreshHeroImageOptions() {
   const select = document.getElementById('f-heroImage');
   if (!select) return;
   const currentSelection = select.value;
+  const hasMain = pictureItems.length > 0;
   const choices = [
     { value: '', label: 'Not the homepage hero' },
-    ...((imageFields.image.saved || imageFields.image.file) ? [{ value: 'image', label: 'Use the full-size image' }] : []),
-    ...((imageFields.thumbnail.saved || imageFields.thumbnail.file) ? [{ value: 'thumbnail', label: 'Use the thumbnail image' }] : [])
+    ...(hasMain ? [{ value: 'image', label: 'Use the main picture' }] : []),
+    ...(hasMain ? [{ value: 'thumbnail', label: 'Use the main picture thumbnail' }] : [])
   ];
   select.innerHTML = choices.map(choice =>
     `<option value="${choice.value}" ${choice.value === currentSelection ? 'selected' : ''}>${choice.label}</option>`
@@ -1038,6 +1207,7 @@ function refreshHeroImageOptions() {
 function closeModal() {
   releaseImagePreviews();
   imageFields = {};
+  pictureItems = [];
   document.getElementById('modal-overlay').hidden = true;
   currentEntry = null;
 }
@@ -1097,30 +1267,56 @@ async function saveEntry() {
 
     const isNew = !currentEntry;
     const year = Number(document.getElementById('f-year').value);
-    let width = Number(document.getElementById('f-width').value);
-    let height = Number(document.getElementById('f-height').value);
     const category = document.getElementById('f-category').value;
     const collection = document.getElementById('f-collection').value;
     if (!Number.isInteger(year) || year < 1900 || year > 2100) throw new Error('Enter a valid artwork year.');
-    if (!(imageFields.image.file || imageFields.image.saved) || !(imageFields.thumbnail.file || imageFields.thumbnail.saved)) {
-      throw new Error('A full-size picture and thumbnail are required. Choose a replacement before saving.');
+    if (!pictureItems.length) throw new Error('Add a main picture before saving this artwork.');
+    if (!category || !collection) throw new Error('Choose a category and collection before saving.');
+    const editionType = document.getElementById('f-editionType').value;
+    const editionSize = editionType === 'limited' ? Number(document.getElementById('f-editionSize').value) : undefined;
+    if (editionType === 'limited' && (!Number.isInteger(editionSize) || editionSize < 1)) {
+      throw new Error('Enter a valid limited-edition size.');
     }
-    if (imageFields.image.file) {
-      let bitmap;
-      try {
-        bitmap = await createImageBitmap(imageFields.image.file, { imageOrientation: 'from-image' });
-        width = bitmap.width;
-        height = bitmap.height;
-      } catch {
-        throw new Error('The selected artwork image could not be read. Choose a valid image file.');
-      } finally {
-        bitmap?.close();
+    if (duplicateDraft && !editionType) {
+      throw new Error('Choose a certificate artwork type for the duplicate before saving.');
+    }
+    const slug = isNew ? await chooseNewSlug(title, duplicateDraft) : currentEntry.slug;
+    const mdPath = `${CONTENT_DIR}/${slug}.md`;
+    const body = document.getElementById('f-body').value;
+    const heroImageField = document.getElementById('f-heroImage').value;
+    if (!heroImageField && homepageSettings.heroSlug === slug) {
+      throw new Error('Select the main picture to keep the current homepage hero.');
+    }
+
+    const savedPictures = [];
+    for (const picture of pictureItems) {
+      if (!picture.file) {
+        savedPictures.push({ ...picture });
+        continue;
       }
+      const prepared = await window.VlementPictures.preparePicture(picture.file);
+      const id = crypto.randomUUID();
+      const pageName = `${slugify(title)}-${id}.jpg`;
+      const zoomName = `${slugify(title)}-${id}-zoom.jpg`;
+      await ghPutFile(`${IMAGE_DIR}/${pageName}`, await fileToBase64(prepared.page.blob), `Upload artwork picture for ${title}`);
+      await ghPutFile(`${IMAGE_DIR}/${zoomName}`, await fileToBase64(prepared.zoom.blob), `Upload artwork zoom picture for ${title}`);
+      savedPictures.push({
+        ...picture,
+        src: `${IMAGE_PUBLIC_PREFIX}/${pageName}`,
+        zoomSrc: `${IMAGE_PUBLIC_PREFIX}/${zoomName}`,
+        width: prepared.width,
+        height: prepared.height,
+      });
+    }
+    const mainPicture = savedPictures[0];
+    let width = mainPicture.width;
+    let height = mainPicture.height;
+    if (!width || !height) {
+      ({ width, height } = await pictureDimensions(mainPicture.src));
     }
     if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
-      throw new Error('Enter valid image width and height in pixels. Choosing a full-size image will fill these automatically.');
+      throw new Error('The main picture dimensions could not be determined. Choose a different picture.');
     }
-    if (!category || !collection) throw new Error('Choose a category and collection before saving.');
 
     const data = {
       ...(duplicateDraft ? {} : editorData),
@@ -1133,38 +1329,31 @@ async function saveEntry() {
       category,
       collection,
       summary: document.getElementById('f-summary').value.trim(),
-      image: imageFields.image.saved || undefined,
-      thumbnail: imageFields.thumbnail.saved || undefined,
+      image: mainPicture.src,
+      imageZoom: mainPicture.zoomSrc || mainPicture.src,
+      imageLabel: mainPicture.label,
+      imageCaption: mainPicture.caption || undefined,
+      thumbnail: mainPicture.src,
+      images: savedPictures.slice(1).map(picture => ({
+        src: picture.src,
+        zoomSrc: picture.zoomSrc || picture.src,
+        alt: picture.alt || '',
+        label: picture.label,
+        ...(picture.caption ? { caption: picture.caption } : {}),
+      })),
       portraitDownload: imageFields.portraitDownload.saved || undefined,
       landscapeDownload: imageFields.landscapeDownload.saved || undefined,
-      altText: document.getElementById('f-altText').value.trim(),
+      altText: mainPicture.alt || '',
       featured: document.getElementById('f-featured').checked,
       available: document.getElementById('f-available').checked,
       price: document.getElementById('f-price').value.trim() || undefined,
-      editionType: document.getElementById('f-editionType').value || undefined,
-      editionSize: document.getElementById('f-editionType').value === 'limited'
-        ? Number(document.getElementById('f-editionSize').value)
-        : undefined,
+      editionType: editionType || undefined,
+      editionSize,
       support: document.getElementById('f-support').value.trim() || undefined,
       printDate: document.getElementById('f-printDate').value.trim() || undefined,
       signed: document.getElementById('f-signed').checked,
       displayOrder: Number(document.getElementById('f-displayOrder').value) || 0
     };
-    if (data.editionType === 'limited'
-      && (!Number.isInteger(data.editionSize) || data.editionSize < 1)) {
-      throw new Error('Enter a valid limited-edition size.');
-    }
-    if (duplicateDraft && !data.editionType) {
-      throw new Error('Choose a certificate artwork type for the duplicate before saving.');
-    }
-    const slug = isNew ? await chooseNewSlug(title, duplicateDraft) : currentEntry.slug;
-    const mdPath = `${CONTENT_DIR}/${slug}.md`;
-    const body = document.getElementById('f-body').value;
-    const heroImageField = document.getElementById('f-heroImage').value;
-    if (!heroImageField && homepageSettings.heroSlug === slug) {
-      throw new Error('Select a full-size image or thumbnail to keep the current homepage hero.');
-    }
-
     for (const spec of imageFieldSpecs) {
       const selected = imageFields[spec.key].file;
       if (!selected) continue;
@@ -1177,6 +1366,7 @@ async function saveEntry() {
 
     // Clean undefined keys
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+    if (!data.images.length) delete data.images;
 
     const content = buildFrontmatter(data, body);
     const b64Content = utf8ToBase64(content);

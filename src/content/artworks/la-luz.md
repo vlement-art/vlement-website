@@ -4,7 +4,7 @@ year: 2024
 width: 3456
 height: 5184
 medium: Hahnemühle Photo Rag Giclée
-dimensions: 42 x 30cm
+dimensions: 30 x 42cm
 category: Print
 collection: Luz
 summary: ''

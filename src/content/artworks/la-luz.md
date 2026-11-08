@@ -5,7 +5,7 @@ width: 3456
 height: 5184
 medium: Hahnemühle Photo Rag Giclée
 dimensions: 42 x 30cm
-category: Original painting
+category: Print
 collection: Luz
 summary: ''
 image: /images/artwork/la-luz.webp
@@ -22,6 +22,7 @@ editionSize: 50
 ---
 
 A quiet study in light and shadow: a worn red book, a pencil, a candle, and a lone bulb illuminate a wooden table against the darkness.
+
 
 
 

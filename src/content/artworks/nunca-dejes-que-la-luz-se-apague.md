@@ -9,7 +9,7 @@ category: Print
 collection: Luz
 summary: A reminder to hold onto light and hope, presented as a Hahnemühle Photo Rag Giclée print
 image: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
-thumbnail: /images/thumbnails/nunca-dejes-que-la-luz-se-apague.webp
+thumbnail: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
 altText: Candle artwork titled No Dejes Que la Luz Se Apague
 featured: true
 available: true
@@ -20,9 +20,13 @@ editionSize: 50
 support: Print-Hahnemühle Photo Rag Giclée
 printDate: '2026'
 signed: true
+imageZoom: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
+imageLabel: other
+portraitDownload: /images/downloads/nunca-dejes-que-la-luz-se-apague-46843132-996a-48ef-864f-d8b25515b65c.jpeg
 ---
 
 A poignant piece that captures the essence of light and hope. Dated August 2026, this is an edition of 50. 
+
 
 
 

@@ -23,6 +23,11 @@ signed: true
 imageZoom: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
 imageLabel: other
 portraitDownload: /images/downloads/nunca-dejes-que-la-luz-se-apague-46843132-996a-48ef-864f-d8b25515b65c.jpeg
+images:
+  - src: /images/artwork/no-dejes-que-la-luz-se-apague-8112485c-8577-49fc-bfcb-e752a0bb9cab.jpg
+    zoomSrc: /images/artwork/no-dejes-que-la-luz-se-apague-8112485c-8577-49fc-bfcb-e752a0bb9cab-zoom.jpg
+    alt: https:/nunca dejes que la luz se apague
+    label: room
 ---
 
 A poignant piece that captures the essence of light and hope. Dated August 2026, this is an edition of 50. 

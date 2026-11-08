@@ -24,9 +24,9 @@ imageZoom: /images/artwork/nunca-dejes-que-la-luz-se-apague.webp
 imageLabel: other
 portraitDownload: /images/downloads/nunca-dejes-que-la-luz-se-apague-46843132-996a-48ef-864f-d8b25515b65c.jpeg
 images:
-  - src: /images/artwork/no-dejes-que-la-luz-se-apague-8112485c-8577-49fc-bfcb-e752a0bb9cab.jpg
-    zoomSrc: /images/artwork/no-dejes-que-la-luz-se-apague-8112485c-8577-49fc-bfcb-e752a0bb9cab-zoom.jpg
-    alt: https:/nunca dejes que la luz se apague
+  - src: /images/artwork/no-dejes-que-la-luz-se-apague-cf875b57-8cf5-44f9-a1f6-e861d39c483b.jpg
+    zoomSrc: /images/artwork/no-dejes-que-la-luz-se-apague-cf875b57-8cf5-44f9-a1f6-e861d39c483b-zoom.jpg
+    alt: No Dejes Que la Luz Se Apague
     label: room
 ---
 

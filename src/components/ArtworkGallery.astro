@@ -1,0 +1,360 @@
+---
+import { formatDimensions } from '../lib/dimensions.mjs';
+
+interface Picture {
+  src: string;
+  zoomSrc: string;
+  alt: string;
+  label: string;
+  caption?: string;
+}
+
+interface Props {
+  title: string;
+  year: number;
+  medium: string;
+  dimensions: string;
+  image: string;
+  imageZoom?: string;
+  imageLabel?: 'detail' | 'room' | 'other';
+  imageCaption?: string;
+  altText: string;
+  images?: Array<{ src: string; zoomSrc?: string; alt: string; label: 'detail' | 'room' | 'other'; caption?: string }>;
+}
+
+const { title, year, medium, dimensions, image, imageZoom, imageLabel, imageCaption, altText, images = [] } = Astro.props;
+const pictures: Picture[] = [
+  { src: image, zoomSrc: imageZoom || image, alt: altText, label: imageLabel || 'main', caption: imageCaption },
+  ...images.map(picture => ({
+    src: picture.src,
+    zoomSrc: picture.zoomSrc || picture.src,
+    alt: picture.alt,
+    label: picture.label,
+    caption: picture.caption,
+  })),
+];
+const caption = (picture: Picture) => picture.caption || (picture.label === 'room' ? 'Illustrative view' : '');
+const labelName = (picture: Picture) => picture.label === 'main'
+  ? ''
+  : picture.label === 'room' ? 'Room view' : picture.label === 'detail' ? 'Detail' : 'Other';
+---
+
+<div class="artwork-gallery" data-artwork-gallery>
+  <button
+    type="button"
+    class:list={['artwork-gallery-main', { 'artwork-gallery-main--framed': pictures.length > 1 }]}
+    aria-label={`Open full-screen viewer for ${title}`}
+    data-gallery-open
+    data-src={pictures[0].src}
+    data-zoom-src={pictures[0].zoomSrc}
+    data-alt={pictures[0].alt}
+    data-caption={caption(pictures[0]) || `${title}, ${year} — ${medium}, ${formatDimensions(dimensions)}`}
+    data-label={labelName(pictures[0]) || 'Artwork'}
+  >
+    <img
+      data-gallery-main-image
+      src={pictures[0].src}
+      alt={pictures[0].alt}
+      loading="eager"
+      fetchpriority="high"
+      decoding="async"
+    />
+  </button>
+  {pictures.length > 1 && (
+    <div class="artwork-gallery-thumbnails" aria-label="All artwork pictures">
+      {pictures.map((picture, index) => (
+        <button
+          type="button"
+          class="artwork-gallery-thumb"
+          aria-label={`Show ${index === 0 ? 'main picture' : labelName(picture) || 'other picture'}`}
+          aria-pressed={index === 0 ? 'true' : 'false'}
+          data-gallery-thumb
+          data-src={picture.src}
+          data-zoom-src={picture.zoomSrc}
+          data-alt={picture.alt}
+          data-label={labelName(picture)}
+          data-caption={caption(picture)}
+        >
+          <img
+            src={picture.src}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        </button>
+      ))}
+    </div>
+  )}
+  <dialog class="artwork-viewer" aria-label="Artwork pictures">
+    <button type="button" class="artwork-viewer-close" aria-label="Close picture viewer" data-viewer-close>&times;</button>
+    <button type="button" class="artwork-viewer-nav artwork-viewer-prev" aria-label="Previous picture" data-viewer-prev>&lsaquo;</button>
+    <button type="button" class="artwork-viewer-nav artwork-viewer-next" aria-label="Next picture" data-viewer-next>&rsaquo;</button>
+    <img class="artwork-viewer-image" alt="" data-viewer-image>
+    <div class="artwork-viewer-caption" aria-live="polite">
+      <span data-viewer-label></span>
+      <span data-viewer-caption></span>
+    </div>
+  </dialog>
+</div>
+
+<style>
+  .artwork-gallery-main {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    touch-action: pan-y;
+  }
+  .artwork-gallery-main img {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+  .artwork-gallery-main--framed {
+    display: flex;
+    height: min(76vh, 58rem);
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #efede8;
+  }
+  .artwork-gallery-main--framed img { height: 100%; }
+  .artwork-gallery-thumbnails {
+    display: flex;
+    gap: 0.6rem;
+    overflow-x: auto;
+    padding: 0.75rem 0 0.25rem;
+  }
+  .artwork-gallery-thumb {
+    display: grid;
+    width: 5rem;
+    height: 5rem;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid transparent;
+    background: #efede8;
+    padding: 0;
+  }
+  .artwork-gallery-thumb[aria-pressed="true"] { border-color: currentColor; }
+  .artwork-gallery-thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .artwork-viewer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 3.5rem 1rem 5rem;
+    overflow: hidden;
+    border: 0;
+    background: #111;
+    color: #fff;
+  }
+  .artwork-viewer::backdrop { background: #111; }
+  .artwork-viewer-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    touch-action: none;
+    user-select: none;
+    transform-origin: center;
+  }
+  .artwork-viewer-close, .artwork-viewer-nav {
+    position: absolute;
+    z-index: 1;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid rgb(255 255 255 / 65%);
+    border-radius: 50%;
+    background: rgb(0 0 0 / 60%);
+    color: white;
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+  .artwork-viewer-close { top: 0.75rem; right: 0.75rem; }
+  .artwork-viewer-nav { top: 50%; transform: translateY(-50%); }
+  .artwork-viewer-prev { left: 0.75rem; }
+  .artwork-viewer-next { right: 0.75rem; }
+  .artwork-viewer-caption {
+    position: absolute;
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    color: #eee;
+    text-align: center;
+  }
+  .artwork-viewer-caption [data-viewer-label]:empty { display: none; }
+  @media (max-width: 640px) {
+    .artwork-gallery-main--framed { height: min(65vh, 42rem); }
+    .artwork-gallery-thumb { width: 4rem; height: 4rem; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll('[data-artwork-gallery]').forEach(gallery => {
+    const mainButton = gallery.querySelector('[data-gallery-open]');
+    const mainImage = gallery.querySelector('[data-gallery-main-image]');
+    const thumbs = [...gallery.querySelectorAll('[data-gallery-thumb]')];
+    const dialog = gallery.querySelector('.artwork-viewer');
+    const viewerImage = gallery.querySelector('[data-viewer-image]');
+    const label = gallery.querySelector('[data-viewer-label]');
+    const caption = gallery.querySelector('[data-viewer-caption]');
+    const mainPicture = {
+      dataset: {
+        src: mainButton.dataset.src,
+        zoomSrc: mainButton.dataset.zoomSrc,
+        alt: mainButton.dataset.alt,
+        caption: mainButton.dataset.caption,
+        label: mainButton.dataset.label,
+      },
+    };
+    let active = 0;
+    let scale = 1;
+    let x = 0;
+    let y = 0;
+    let startX = 0;
+    let startY = 0;
+    let startDistance = 0;
+    let startScale = 1;
+    let dragX = 0;
+    let dragY = 0;
+    const pointers = new Map();
+    let swiped = false;
+
+    function resetZoom() {
+      scale = 1;
+      x = 0;
+      y = 0;
+      viewerImage.style.transform = '';
+    }
+
+    function select(index) {
+      active = (index + thumbs.length + 1) % (thumbs.length + 1);
+      const item = active === 0 ? mainPicture : thumbs[active - 1];
+      const zoomSrc = item.dataset.zoomSrc || item.dataset.src;
+      mainImage.src = item.dataset.src;
+      mainButton.dataset.zoomSrc = zoomSrc;
+      mainButton.dataset.alt = item.dataset.alt;
+      mainButton.dataset.caption = item.dataset.caption || '';
+      mainButton.dataset.label = item.dataset.label || 'Artwork';
+      mainImage.alt = item.dataset.alt;
+      thumbs.forEach((thumb, thumbIndex) => thumb.setAttribute('aria-pressed', String(thumbIndex === active - 1)));
+      mainButton.setAttribute('aria-label', `Open full-screen viewer for ${mainImage.alt || 'artwork'}`);
+    }
+
+    function setViewer(index) {
+      select(index);
+      resetZoom();
+      viewerImage.src = mainButton.dataset.zoomSrc;
+      viewerImage.alt = mainButton.dataset.alt;
+      label.textContent = mainButton.dataset.label || 'Artwork';
+      caption.textContent = mainButton.dataset.caption || '';
+      gallery.querySelector('[data-viewer-prev]').hidden = thumbs.length === 0;
+      gallery.querySelector('[data-viewer-next]').hidden = thumbs.length === 0;
+    }
+
+    function openViewer() {
+      setViewer(active);
+      dialog.showModal();
+      gallery.querySelector('[data-viewer-close]').focus();
+    }
+
+    function closeViewer() {
+      if (dialog.open) dialog.close();
+      mainButton.focus();
+    }
+
+    function step(delta) {
+      setViewer((active + delta + thumbs.length + 1) % (thumbs.length + 1));
+    }
+
+    mainButton.addEventListener('click', event => {
+      if (swiped) {
+        swiped = false;
+        event.preventDefault();
+        return;
+      }
+      openViewer();
+    });
+    thumbs.forEach((thumb, index) => thumb.addEventListener('click', () => select(index + 1)));
+    gallery.querySelector('[data-viewer-close]').addEventListener('click', closeViewer);
+    gallery.querySelector('[data-viewer-prev]').addEventListener('click', () => step(-1));
+    gallery.querySelector('[data-viewer-next]').addEventListener('click', () => step(1));
+    dialog.addEventListener('keydown', event => {
+      if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+      if (event.key === 'Tab') {
+        const focusable = [...dialog.querySelectorAll('button:not([hidden])')];
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    });
+    mainButton.addEventListener('pointerdown', event => { startX = event.clientX; swiped = false; });
+    mainButton.addEventListener('pointerup', event => {
+      const dx = event.clientX - startX;
+      if (Math.abs(dx) > 50 && thumbs.length) {
+        swiped = true;
+        select(active + (dx < 0 ? 1 : -1));
+      }
+    });
+    function applyTransform() { viewerImage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`; }
+    viewerImage.addEventListener('wheel', event => {
+      event.preventDefault();
+      scale = Math.max(1, Math.min(4, scale + (event.deltaY < 0 ? 0.25 : -0.25)));
+      if (scale === 1) { x = 0; y = 0; }
+      applyTransform();
+    }, { passive: false });
+    viewerImage.addEventListener('click', event => {
+      if (pointers.size > 0) return;
+      scale = scale === 1 ? 2 : 1;
+      if (scale === 1) { x = 0; y = 0; }
+      else { x = (viewerImage.clientWidth / 2 - event.clientX) * 0.5; y = (viewerImage.clientHeight / 2 - event.clientY) * 0.5; }
+      applyTransform();
+    });
+    viewerImage.addEventListener('pointerdown', event => {
+      viewerImage.setPointerCapture(event.pointerId);
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 1) { dragX = event.clientX - x; dragY = event.clientY - y; }
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        startDistance = Math.hypot(a.x - b.x, a.y - b.y);
+        startScale = scale;
+      }
+    });
+    viewerImage.addEventListener('pointermove', event => {
+      if (!pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 1 && scale > 1) {
+        x = event.clientX - dragX;
+        y = event.clientY - dragY;
+        applyTransform();
+      } else if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        scale = Math.max(1, Math.min(4, startScale * Math.hypot(a.x - b.x, a.y - b.y) / startDistance));
+        if (scale === 1) { x = 0; y = 0; }
+        applyTransform();
+      }
+    });
+    ['pointerup', 'pointercancel'].forEach(type => viewerImage.addEventListener(type, event => {
+      pointers.delete(event.pointerId);
+      if (pointers.size === 1) {
+        const remaining = [...pointers.values()][0];
+        dragX = remaining.x - x;
+        dragY = remaining.y - y;
+      }
+    }));
+    dialog.addEventListener('click', event => { if (event.target === dialog) closeViewer(); });
+  });
+</script>

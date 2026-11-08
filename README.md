@@ -105,6 +105,9 @@ Every artwork is one Markdown file in `src/content/artworks/`. To add one:
    | `collection` | string | used by the gallery collection filter |
    | `summary` | string | short description — used in meta tags & cards |
    | `image` | string | path under `/public`, e.g. `/images/artwork/blue-hour.webp` |
+   | `imageZoom` | string | optional larger viewer image; legacy records use `image` |
+   | `imageLabel` / `imageCaption` | string | optional label and caption for the main picture |
+   | `images` | list | optional extra pictures (maximum 7); each has `src`, `alt`, `label` (`detail`, `room`, `other`), and optional `caption` / `zoomSrc` |
    | `thumbnail` | string | path under `/public`, e.g. `/images/thumbnails/blue-hour.webp` |
    | `altText` | string | describes the artwork for screen readers — be specific |
    | `featured` | boolean | shows in the home page's selected works gallery (optional, default `false`) |
@@ -132,6 +135,13 @@ selection and category/collection choices are stored in `src/data/` JSON
 files. The normal site build then renders those same records into the public
 artwork pages and homepage.
 
+The artwork editor accepts up to 8 pictures per artwork, with a 20 MB maximum
+per JPG, PNG, or WebP upload. It prepares page (1600 px longest edge) and
+viewer (3000 px longest edge) JPEGs in the browser; `image` remains the main
+picture for cards, certificates, labels, and social previews. Extra pictures
+appear only on that artwork's page, and removing one only removes its Markdown
+reference—the stored file is left in the repository.
+
 Use **Export Excel (.xlsx)** in the admin panel to download a workbook of all
 artwork records and metadata. Thumbnail previews are embedded when the
 browser can read them; full-size artwork files are not embedded, so back up
@@ -145,17 +155,19 @@ local/deployment instructions are documented in
 
 Recommended source dimensions and limits:
 
-- **Full artwork image** (`image` field): longest edge **1600–2000px**,
-  **under ~400KB** as WebP (quality ~80). This is shown on the artwork page
-  and in the lightbox — it is *not* your original high-resolution file.
-- **Thumbnail** (`thumbnail` field): **640×800px** (or matching your image's
-  aspect ratio), **under ~80KB**. Used on cards and grids.
+- **Artwork page image** (`image` and extra `src` fields): longest edge
+  **1600px**. The admin editor produces this size as JPEG.
+- **Artwork viewer image** (`imageZoom` and extra `zoomSrc` fields): longest
+  edge **3000px**. The admin editor produces this size as JPEG.
+- **Thumbnail** (`thumbnail` field): the admin editor points this to the main
+  page image; existing artwork may keep a separate thumbnail.
 - **Portrait / about image**: ~800×1000px.
 - **Open Graph default image** (`public/images/artist/og-default.webp`):
   1200×630px, used when a page doesn't set its own `ogImage`.
 
-Format: **WebP** throughout (broadly supported, good compression at
-reasonable quality). If you need AVIF for specific images, add it as a
+Existing site images are primarily **WebP**; the admin picture editor writes
+the resized page and viewer JPEGs described above. If you need AVIF for
+specific images, add it as a
 `<source>` in an Astro `<picture>` wrapper — not set up by default here to
 keep the build dependency-light, but straightforward to add per-image.
 

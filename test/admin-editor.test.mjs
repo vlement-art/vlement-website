@@ -4,6 +4,18 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import sharp from 'sharp';
 import { formatDimensions } from '../src/lib/dimensions.mjs';
+import { validatePictureFiles } from '../src/admin/artwork-pictures.js';
+
+function mockElement() {
+  return {
+    children: [],
+    dataset: {},
+    addEventListener(type, handler) { this[`on${type}`] = handler; },
+    replaceChildren(...children) { this.children = children; },
+    append(...children) { this.children.push(...children); },
+    setAttribute(name, value) { this[name] = value; },
+  };
+}
 
 async function editorContext() {
   const html = await readFile('public/admin/index.html', 'utf8');
@@ -12,23 +24,29 @@ async function editorContext() {
   assert.ok(script, 'admin editor script exists');
   const elements = new Map();
   const context = vm.createContext({
-    window: {},
+    window: {
+      VlementPictures: {
+        validatePictureFiles,
+        inspectPicture: async () => ({ width: 1200, height: 800 }),
+      },
+    },
     VlementDimensions: { formatDimensions },
     elements,
     sessionStorage: { getItem: () => null },
+    crypto,
+    URL: {
+      createObjectURL: file => `blob:${file.name}`,
+      revokeObjectURL() {},
+    },
+    confirm: () => true,
     document: {
       getElementById(id) {
-        if (!elements.has(id)) elements.set(id, {
-          value: '',
-          addEventListener(type, handler) { this[`on${type}`] = handler; },
-          replaceChildren() {},
-          append() {},
-        });
+        if (!elements.has(id)) elements.set(id, mockElement());
         return elements.get(id);
       },
-      createElement: () => ({}),
+      createElement: () => mockElement(),
     },
-    DataView, Uint8Array, File, URL, console, setTimeout, clearTimeout,
+    DataView, Uint8Array, File, console, setTimeout, clearTimeout,
   });
   vm.runInContext(script, context);
   return context;
@@ -75,4 +93,37 @@ test('detects EXIF orientation and leaves already upright JPEGs untouched', asyn
   assert.equal(await vm.runInContext('jpegOrientation(rotated)', context), 6);
   assert.equal(await vm.runInContext('jpegOrientation(upright)', context), 1);
   assert.equal(await vm.runInContext('normalizeImageOrientation(upright)', context), context.upright);
+});
+
+test('picture editor supports adding, reordering, promoting, and removing pictures', async () => {
+  const context = await editorContext();
+  vm.runInContext("openEditor(null)", context);
+  const first = new File(['one'], 'first.jpg', { type: 'image/jpeg' });
+  const second = new File(['two'], 'second.jpg', { type: 'image/jpeg' });
+  context.selectedPictures = [first, second];
+  await vm.runInContext('addPictures(selectedPictures)', context);
+  assert.equal(vm.runInContext('pictureItems.length', context), 2);
+
+  const secondActions = context.elements.get('pictures-list').children[1].children[2];
+  secondActions.children.find(button => button.textContent === 'Make main').onclick();
+  assert.equal(vm.runInContext('pictureItems[0].file.name', context), 'second.jpg');
+
+  const firstRowActions = context.elements.get('pictures-list').children[1].children[2];
+  firstRowActions.children.find(button => button.textContent === 'Delete').onclick();
+  assert.equal(vm.runInContext('pictureItems.length', context), 1);
+  assert.equal(vm.runInContext('pictureItems[0].file.name', context), 'second.jpg');
+});
+
+test('saving is blocked when the artwork has no main picture', async () => {
+  const context = await editorContext();
+  vm.runInContext(`
+    ensureYamlLibrary = async () => {};
+    openEditor(null);
+    document.getElementById('f-title').value = 'Test artwork';
+    document.getElementById('f-year').value = '2025';
+    document.getElementById('f-category').value = 'Print';
+    document.getElementById('f-collection').value = 'Yellow Balloon';
+  `, context);
+  await vm.runInContext('saveEntry()', context);
+  assert.match(context.elements.get('modal-error').innerHTML, /Add a main picture/);
 });

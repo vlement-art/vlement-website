@@ -41,7 +41,7 @@
         ...options,
         cache: 'no-store',
         headers: {
-          Authorization: `******`,
+          Authorization: `Bearer ${token}`,
           ...(options.body ? { 'Content-Type': 'application/json' } : {}),
           ...options.headers
         }

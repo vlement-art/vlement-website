@@ -83,6 +83,38 @@ test('duplicate slugs skip existing files and assigned artwork codes', async () 
   await assert.rejects(vm.runInContext("chooseNewSlug('Painting', true)", context), /Code service unavailable/);
 });
 
+test('duplicate opens an explicitly identified unsaved copy without saving it', async () => {
+  const context = await editorContext();
+  vm.runInContext(`
+    const values = {
+      title: 'Pastilla Para Dejar De Soñar', year: '2024', medium: 'Oil',
+      dimensions: '42 X 30 cm', displayOrder: '2', width: '5184', height: '3456',
+      category: 'Original painting', collection: 'Sueños', summary: '',
+      altText: 'A painting', price: '', editionType: 'original', editionSize: '',
+      support: '', printDate: ''
+    };
+    for (const [key, value] of Object.entries(values)) document.getElementById('f-' + key).value = value;
+    document.getElementById('f-featured').checked = false;
+    document.getElementById('f-signed').checked = true;
+    document.getElementById('f-available').checked = false;
+    imageFields = {
+      image: { saved: '/images/artwork/pastilla.webp', file: null, url: null },
+      thumbnail: { saved: '/images/thumbnails/pastilla.webp', file: null, url: null },
+      portraitDownload: { saved: '', file: null, url: null },
+      landscapeDownload: { saved: '', file: null, url: null }
+    };
+    document.getElementById('f-body').value = 'Existing description.';
+    duplicateArtwork();
+  `, context);
+
+  const modal = context.elements.get('modal');
+  assert.match(modal.innerHTML, /Duplicate Artwork/);
+  assert.match(modal.innerHTML, /new, unsaved copy/);
+  assert.match(modal.innerHTML, /select Save to create the duplicate/);
+  assert.match(modal.innerHTML, /id="save-btn"/);
+  assert.doesNotMatch(modal.innerHTML, /id="duplicate-btn"/);
+});
+
 test('detects EXIF orientation and leaves already upright JPEGs untouched', async () => {
   const context = await editorContext();
   const pixels = { create: { width: 80, height: 40, channels: 3, background: '#ff0000' } };

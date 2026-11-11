@@ -74,7 +74,13 @@
         "ACCOUNT_ID": "56ca94384d6510e6bb5fae0599a84414",
         "DATABASE_ID": "ab69d88a-e350-4769-8e94-f925199260ab",
         "ALLOWED_ORIGIN": "https://vlement.com",
-        "ARTWORK_REPOSITORY": "vlement-art/vlement-website"
+        "ARTWORK_REPOSITORY": "vlement-art/vlement-website",
+        "SELLER_NAME": "Jose Rodrigues",
+        "SELLER_WEBSITE": "https://vlement.com",
+        "SELLER_EMAIL": "sales@vlement.com",
+        "SELLER_ADDRESS": "",
+        "RECEIPT_FROM_ADDRESS": "Vlement <sales@vlement.com>",
+        "RECEIPT_REPLY_TO": "sales@vlement.com"
       },
       
     }

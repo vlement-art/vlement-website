@@ -54,7 +54,7 @@ export function renderReceipt(
   if (sale.buyer_email) rows.push(['Email', sale.buyer_email]);
   if (includeNotes && sale.notes) rows.push(['Notes', sale.notes]);
   const seller = [env.SELLER_NAME, env.SELLER_WEBSITE, env.SELLER_EMAIL, env.SELLER_ADDRESS]
-    .filter((value): value is string => Boolean(value));
+    .filter((value): value is string => Boolean(value?.trim()));
   const rowHtml = rows.map(([label, value]) => `<tr><td style="padding:8px 18px 8px 0;color:#666;vertical-align:top">${escapeHtml(label)}</td><td style="padding:8px 0;white-space:pre-wrap;vertical-align:top">${escapeHtml(value)}</td></tr>`).join('');
   const cancelled = sale.status === 'cancelled';
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Receipt</title><style>@media print { @page { size: A4; margin: 20mm; } body { margin: 0 !important; } .receipt { padding: 0 !important; } }</style></head>

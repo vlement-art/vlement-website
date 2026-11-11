@@ -86,9 +86,10 @@ Configure `SELLER_NAME`, `SELLER_WEBSITE`, `SELLER_EMAIL`, and
 `RECEIPT_FROM_ADDRESS` in the relevant Worker's Wrangler environment; optional
 variables are `SELLER_ADDRESS` and `RECEIPT_REPLY_TO`. Add `RESEND_API_KEY` as
 a Worker secret, never as a public site variable or a repository file. For
-production, add the non-secret variables under `env.production.vars` in
-`workers/certificates/wrangler.jsonc` before deploying, so subsequent Wrangler
-deployments retain them. The sender domain must be verified with Resend.
+production, maintain the non-secret variables under `env.production.vars` in
+`workers/certificates/wrangler.jsonc`, so subsequent Wrangler deployments retain
+them. See [DEPLOY.md](DEPLOY.md) for deployment and secret setup. The sender
+domain must be verified with Resend.
 The receipt logo must be available at `https://vlement.com/images/vaa-logo.png`.
 
 The migration is tracked by Wrangler: repeated `d1 migrations apply` runs skip

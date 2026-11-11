@@ -345,4 +345,72 @@ describe('sales endpoints', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('renders escaped receipts, records print and email actions, and protects cancelled receipts', async () => {
+    const slug = `receipt-${crypto.randomUUID().slice(0, 8)}`;
+    const github = githubApi({
+      [slug]: { title: 'Limited & artwork', category: 'Print', editionType: 'limited', editionSize: 5 },
+    });
+    const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      Response.json({ id: 'provider-id' }));
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input) === 'https://api.resend.com/emails' ? provider(input, init) : github(input)));
+    const receiptEnv = Object.assign(Object.create(authorizedEnv()), {
+      SELLER_NAME: 'Vlement',
+      SELLER_WEBSITE: 'https://vlement.com',
+      SELLER_EMAIL: 'sales@example.com',
+      RESEND_API_KEY: 'test-key',
+      RECEIPT_FROM_ADDRESS: 'Vlement <sales@example.com>',
+      VERIFY_LIMITER: { limit: async () => ({ success: true }) },
+    }) as Env;
+    const get = (path: string, authenticated = true) => worker.fetch(new Request(
+      `https://certificates.test${path}`, authenticated ? { headers: headers() } : {},
+    ), receiptEnv);
+    const post = (path: string, body: Record<string, unknown>) => worker.fetch(new Request(
+      `https://certificates.test${path}`,
+      { method: 'POST', headers: headers(), body: JSON.stringify(body) },
+    ), receiptEnv);
+    try {
+      expect((await get('/api/admin/sales/receipt?saleNumber=test', false)).status).toBe(401);
+      const created = await postSale(headers(), saleBody(slug, 'limited_edition', {
+        buyerName: '<script>buyer</script>', buyerEmail: null, notes: '<img src=x onerror=alert(1)>',
+      }));
+      expect(created.status).toBe(201);
+      const { sale } = await created.json() as { sale: { sale_number: string } };
+      const number = sale.sale_number;
+      const receiptUrl = `/api/admin/sales/receipt?saleNumber=${encodeURIComponent(number)}`;
+      const hidden = await (await get(receiptUrl)).text();
+      expect(hidden).toContain('&lt;script&gt;buyer&lt;/script&gt;');
+      expect(hidden).toContain('Limited &amp; artwork');
+      expect(hidden).toContain('Edition 1 of 5');
+      expect(hidden).not.toContain('onerror');
+      const visible = await (await get(`${receiptUrl}&includeNotes=1`)).text();
+      expect(visible).toContain('&lt;img src=x onerror=alert(1)&gt;');
+      expect(visible).not.toContain('<img src=x onerror');
+
+      expect((await post('/api/admin/sales/receipt/email', { saleNumber: number })).status).toBe(400);
+      expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, buyerEmail: 'bad' })).status).toBe(400);
+      expect((await post('/api/admin/sales/receipt/printed', { saleNumber: number })).status).toBe(200);
+      expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, buyerEmail: 'buyer@example.com' })).status).toBe(200);
+      expect(provider).toHaveBeenCalledTimes(1);
+      const sent = JSON.parse(String(provider.mock.calls[0][1]?.body)) as { html: string; text: string };
+      expect(sent.html).toContain('Edition 1 of 5');
+      expect(sent.text).toContain('Edition 1 of 5');
+      expect(sent.html).not.toContain('onerror');
+      const listed = await (await get('/api/admin/sales?per_page=100')).json() as {
+        sales: Array<{ sale_number: string; buyer_email: string; receipt_printed_at: string; receipt_emailed_at: string }>;
+      };
+      expect(listed.sales.find(item => item.sale_number === number)).toMatchObject({
+        buyer_email: 'buyer@example.com',
+        receipt_printed_at: expect.any(String),
+        receipt_emailed_at: expect.any(String),
+      });
+      expect((await post('/api/admin/sales/cancel', { saleNumber: number })).status).toBe(200);
+      expect(await (await get(receiptUrl)).text()).toContain('CANCELLED');
+      expect((await post('/api/admin/sales/receipt/email', { saleNumber: number })).status).toBe(400);
+      expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, confirmCancelled: true })).status).toBe(200);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

@@ -2,6 +2,8 @@ import certificateConfig from '../../../shared/certificate-config.json';
 import type { CertificateType, Env, IssueRequest } from './types';
 import { D1BackupWorkflow } from './backup-workflow';
 import { handleArtworkCodeRequest } from './artwork-codes';
+import { renderReceipt } from './receipt';
+import type { ReceiptSale } from './receipt';
 export { D1BackupWorkflow };
 
 const certificateTypes = certificateConfig.certificateTypes as Record<
@@ -209,6 +211,7 @@ async function githubContent(
   request: Request,
   env: Env,
   path: string,
+  allowMissing = false,
 ): Promise<unknown> {
   const response = await fetch(
     `https://api.github.com/repos/${env.ARTWORK_REPOSITORY}/contents/${path}?ref=main`,
@@ -222,8 +225,112 @@ async function githubContent(
       cache: 'no-store',
     },
   );
+  if (allowMissing && response.status === 404) return null;
   if (!response.ok) throw new Error('Could not read artwork details from GitHub.');
   return response.json();
+}
+
+async function receiptArtwork(request: Request, env: Env, slug: string) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error('Enter a valid artwork.');
+  const file = await githubContent(request, env, `src/content/artworks/${encodeURIComponent(slug)}.md`, true);
+  if (file === null) return { title: slug, editionSize: null };
+  if (!isGitHubContentFile(file) || !file.content) throw new Error('Artwork metadata is missing from GitHub.');
+  const data = parseArtworkFrontmatter(file.content);
+  const size = Number(data.editionSize);
+  return {
+    title: data.title || slug,
+    editionSize: Number.isInteger(size) && size > 0 ? size : null,
+  };
+}
+
+async function receiptSale(env: Env, saleNumber: string): Promise<ReceiptSale | null> {
+  return env.DB.prepare(
+    `SELECT sale_number, artwork_slug, item_type, edition_number, buyer_name, buyer_email,
+            sale_date, price, currency, notes, status FROM sales WHERE sale_number = ?`,
+  ).bind(saleNumber).first<ReceiptSale>();
+}
+
+function sellerConfigured(env: Env): boolean {
+  return Boolean(env.SELLER_NAME?.trim() && env.SELLER_WEBSITE?.trim() && env.SELLER_EMAIL?.trim());
+}
+
+async function handleReceipt(request: Request, env: Env, path: string): Promise<Response> {
+  const url = new URL(request.url);
+  let input: Record<string, unknown> = {};
+  if (request.method === 'POST') {
+    const body = parseJson(await request.text());
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return jsonResponse({ error: 'Enter receipt details.' }, 400);
+    }
+    input = body as Record<string, unknown>;
+  }
+  const number = request.method === 'GET' ? url.searchParams.get('saleNumber') : input.saleNumber;
+  if (typeof number !== 'string' || !number.trim() || number.length > 40) {
+    return jsonResponse({ error: 'Enter a valid sale number.' }, 400);
+  }
+  const sale = await receiptSale(env, number.trim());
+  if (!sale) return jsonResponse({ error: 'Sale not found.' }, 404);
+  if (path.endsWith('/printed') && request.method === 'POST') {
+    const updated = await env.DB.prepare(
+      'UPDATE sales SET receipt_printed_at = ? WHERE sale_number = ? RETURNING *',
+    ).bind(new Date().toISOString(), sale.sale_number).first();
+    return jsonResponse({ sale: updated });
+  }
+  if (!sellerConfigured(env)) {
+    return jsonResponse({ error: 'Receipt seller details are not configured.' }, 503);
+  }
+  if (path.endsWith('/email') && request.method === 'POST') {
+    if (sale.status === 'cancelled' && input.confirmCancelled !== true) {
+      return jsonResponse({ error: 'Confirm before emailing a cancelled receipt.' }, 400);
+    }
+    const email = input.buyerEmail === undefined ? sale.buyer_email : input.buyerEmail;
+    if (typeof email !== 'string' || !email.trim()) {
+      return jsonResponse({ error: 'Enter a buyer email address.' }, 400);
+    }
+    const recipient = email.trim();
+    if (recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      return jsonResponse({ error: 'Enter a valid buyer email address.' }, 400);
+    }
+    if (!env.RESEND_API_KEY || !env.RECEIPT_FROM_ADDRESS) {
+      return jsonResponse({ error: 'Receipt email is not configured.' }, 503);
+    }
+    const artwork = await receiptArtwork(request, env, sale.artwork_slug);
+    const receipt = renderReceipt({ ...sale, buyer_email: recipient }, artwork, env);
+    let response: Response;
+    try {
+      response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: env.RECEIPT_FROM_ADDRESS,
+          to: [recipient],
+          ...(env.RECEIPT_REPLY_TO ? { reply_to: env.RECEIPT_REPLY_TO } : {}),
+          subject: `Your receipt from Vlement – ${sale.sale_number}`,
+          html: receipt.html,
+          text: receipt.text,
+        }),
+      });
+    } catch {
+      return jsonResponse({ error: 'Receipt email could not be sent by the provider.' }, 502);
+    }
+    if (!response.ok) return jsonResponse({ error: 'Receipt email could not be sent by the provider.' }, 502);
+    try {
+      await env.DB.prepare(
+        'UPDATE sales SET receipt_emailed_at = ?, buyer_email = COALESCE(NULLIF(buyer_email, \'\'), ?) WHERE sale_number = ?',
+      ).bind(new Date().toISOString(), recipient, sale.sale_number).run();
+    } catch {
+      return jsonResponse({ error: 'The email was sent, but its delivery record could not be saved. Check before sending again.' }, 500);
+    }
+    return jsonResponse({ ok: true });
+  }
+  if (path === '/api/admin/sales/receipt' && request.method === 'GET') {
+    const artwork = await receiptArtwork(request, env, sale.artwork_slug);
+    const receipt = renderReceipt(sale, artwork, env, url.searchParams.get('includeNotes') === '1');
+    return new Response(receipt.html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  return jsonResponse({ error: 'Not found.' }, 404);
 }
 
 function isGitHubContentFile(value: unknown): value is { content: string; name?: string; type?: string } {
@@ -940,6 +1047,11 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     await enforceSalesRateLimit(env);
   }
 
+  if ((request.method === 'GET' && path === '/api/admin/sales/receipt')
+    || (request.method === 'POST' && ['/api/admin/sales/receipt/printed', '/api/admin/sales/receipt/email'].includes(path))) {
+    return handleReceipt(request, env, path);
+  }
+
   if (request.method === 'GET' && path === '/api/admin/sales/artworks') {
     return jsonResponse({ artworks: await listArtworksForSale(request, env) });
   }
@@ -956,7 +1068,8 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     const { results } = await env.DB.prepare(
       `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
               sale_number, buyer_name, buyer_email, sale_date, price, currency, notes,
-              status, cancelled_at, certificate_id, created_at, created_by
+              status, cancelled_at, certificate_id, created_at, created_by,
+              receipt_printed_at, receipt_emailed_at
          FROM sales ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
     ).bind(requestedLimit, offset).all<Record<string, unknown>>();
     const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM sales')

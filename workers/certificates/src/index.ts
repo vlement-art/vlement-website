@@ -250,8 +250,9 @@ async function receiptSale(env: Env, saleNumber: string): Promise<ReceiptSale | 
   ).bind(saleNumber).first<ReceiptSale>();
 }
 
-function sellerConfigured(env: Env): boolean {
-  return Boolean(env.SELLER_NAME?.trim() && env.SELLER_WEBSITE?.trim() && env.SELLER_EMAIL?.trim());
+function missingSellerVariables(env: Env): string[] {
+  const required = ['SELLER_NAME', 'SELLER_WEBSITE', 'SELLER_EMAIL'] as const;
+  return required.filter(name => !env[name]?.trim());
 }
 
 async function handleReceipt(request: Request, env: Env, path: string): Promise<Response> {
@@ -276,8 +277,9 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
     ).bind(new Date().toISOString(), sale.sale_number).first();
     return jsonResponse({ sale: updated });
   }
-  if (!sellerConfigured(env)) {
-    return jsonResponse({ error: 'Receipt seller details are not configured.' }, 503);
+  const missingSeller = missingSellerVariables(env);
+  if (missingSeller.length) {
+    return jsonResponse({ error: `Receipt seller settings missing: ${missingSeller.join(', ')}.` }, 503);
   }
   if (path.endsWith('/email') && request.method === 'POST') {
     if (sale.status === 'cancelled' && input.confirmCancelled !== true) {
@@ -304,7 +306,7 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
         body: JSON.stringify({
           from: env.RECEIPT_FROM_ADDRESS,
           to: [recipient],
-          ...(env.RECEIPT_REPLY_TO ? { reply_to: env.RECEIPT_REPLY_TO } : {}),
+          ...(env.RECEIPT_REPLY_TO?.trim() ? { reply_to: env.RECEIPT_REPLY_TO.trim() } : {}),
           subject: `Your receipt from Vlement – ${sale.sale_number}`,
           html: receipt.html,
           text: receipt.text,

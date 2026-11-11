@@ -359,6 +359,8 @@ describe('sales endpoints', () => {
       SELLER_NAME: 'Vlement',
       SELLER_WEBSITE: 'https://vlement.com',
       SELLER_EMAIL: 'sales@example.com',
+      SELLER_ADDRESS: '',
+      RECEIPT_REPLY_TO: '',
       RESEND_API_KEY: 'test-key',
       RECEIPT_FROM_ADDRESS: 'Vlement <sales@example.com>',
       VERIFY_LIMITER: { limit: async () => ({ success: true }) },
@@ -379,6 +381,31 @@ describe('sales endpoints', () => {
       const { sale } = await created.json() as { sale: { sale_number: string } };
       const number = sale.sale_number;
       const receiptUrl = `/api/admin/sales/receipt?saleNumber=${encodeURIComponent(number)}`;
+      for (const missing of ['SELLER_NAME', 'SELLER_WEBSITE', 'SELLER_EMAIL'] as const) {
+        const previous = receiptEnv[missing];
+        receiptEnv[missing] = '  ';
+        const response = await worker.fetch(new Request(
+          `https://certificates.test${receiptUrl}`, { headers: headers() },
+        ), receiptEnv);
+        expect(response.status).toBe(503);
+        expect(await response.json()).toEqual({ error: `Receipt seller settings missing: ${missing}.` });
+        receiptEnv[missing] = previous;
+      }
+      const sellerSettings = {
+        SELLER_NAME: receiptEnv.SELLER_NAME,
+        SELLER_WEBSITE: receiptEnv.SELLER_WEBSITE,
+        SELLER_EMAIL: receiptEnv.SELLER_EMAIL,
+      };
+      Object.assign(receiptEnv, { SELLER_NAME: '', SELLER_WEBSITE: '', SELLER_EMAIL: '' });
+      const missingAllResponse = await worker.fetch(new Request(
+        'https://certificates.test/api/admin/sales/receipt/email',
+        { method: 'POST', headers: headers(), body: JSON.stringify({ saleNumber: number }) },
+      ), receiptEnv);
+      expect(missingAllResponse.status).toBe(503);
+      expect(await missingAllResponse.json()).toEqual({
+        error: 'Receipt seller settings missing: SELLER_NAME, SELLER_WEBSITE, SELLER_EMAIL.',
+      });
+      Object.assign(receiptEnv, sellerSettings);
       const hidden = await (await get(receiptUrl)).text();
       expect(hidden).toContain('&lt;script&gt;buyer&lt;/script&gt;');
       expect(hidden).toContain('Limited &amp; artwork');
@@ -401,10 +428,11 @@ describe('sales endpoints', () => {
       expect(beforeRetry).toEqual({ receipt_emailed_at: null, buyer_email: null });
       expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, buyerEmail: 'buyer@example.com' })).status).toBe(200);
       expect(provider).toHaveBeenCalledTimes(2);
-      const sent = JSON.parse(String(provider.mock.calls[1][1]?.body)) as { html: string; text: string };
+      const sent = JSON.parse(String(provider.mock.calls[1][1]?.body)) as { html: string; text: string; reply_to?: string };
       expect(sent.html).toContain('Edition 1 of 5');
       expect(sent.text).toContain('Edition 1 of 5');
       expect(sent.html).not.toContain('onerror');
+      expect(sent).not.toHaveProperty('reply_to');
       const listed = await (await get('/api/admin/sales?per_page=100')).json() as {
         sales: Array<{ sale_number: string; buyer_email: string; receipt_printed_at: string; receipt_emailed_at: string }>;
       };
@@ -416,7 +444,13 @@ describe('sales endpoints', () => {
       expect((await post('/api/admin/sales/cancel', { saleNumber: number })).status).toBe(200);
       expect(await (await get(receiptUrl)).text()).toContain('CANCELLED');
       expect((await post('/api/admin/sales/receipt/email', { saleNumber: number })).status).toBe(400);
+      receiptEnv.RECEIPT_REPLY_TO = 'reply@example.com';
+      receiptEnv.SELLER_ADDRESS = 'Studio address';
+      expect(await (await get(receiptUrl)).text()).toContain('Studio address');
       expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, confirmCancelled: true })).status).toBe(200);
+      const cancelledEmail = JSON.parse(String(provider.mock.calls[2][1]?.body)) as { reply_to?: string; html: string };
+      expect(cancelledEmail.reply_to).toBe('reply@example.com');
+      expect(cancelledEmail.html).toContain('Studio address');
     } finally {
       vi.unstubAllGlobals();
     }

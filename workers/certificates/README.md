@@ -98,6 +98,13 @@ applies pending migrations and deploys the Worker after a push to `main`, so
 complete the external setup and review the production environment approval
 before merging.
 
+For an explicitly approved manual production rollout, run:
+
+```sh
+npx wrangler d1 migrations apply vlement-certificates-prod --remote --config workers/certificates/wrangler.jsonc --env production
+npx wrangler deploy --env production --config workers/certificates/wrangler.jsonc
+```
+
 Recent sales can be exported to Excel; D1 remains authoritative. Sales CSV is
 also included in the encrypted backup when D1 is exported, from that same
 snapshot. The CSV prefixes formula-like text with an apostrophe to avoid

@@ -368,10 +368,12 @@
         sale.receipt_emailed_at ? new Date(sale.receipt_emailed_at) : null
       ]);
       const book = xlsx.utils.book_new();
-      const sheet = xlsx.utils.aoa_to_sheet([headers, ...rows], { cellDates: true });
+      const sheet = xlsx.utils.aoa_to_sheet([headers, ...rows], {
+        cellDates: false, dateNF: 'yyyy-mm-dd hh:mm:ss'
+      });
       xlsx.utils.book_append_sheet(book, sheet, 'Sales');
       const workbook = new exceljs.Workbook();
-      await workbook.xlsx.load(xlsx.write(book, { type: 'array', bookType: 'xlsx', cellDates: true }));
+      await workbook.xlsx.load(xlsx.write(book, { type: 'array', bookType: 'xlsx' }));
       const worksheet = workbook.getWorksheet('Sales');
       if (!worksheet) throw new Error('Could not create the Sales worksheet.');
       worksheet.views = [{ state: 'frozen', ySplit: 1 }];

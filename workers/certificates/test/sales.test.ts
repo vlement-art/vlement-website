@@ -390,10 +390,18 @@ describe('sales endpoints', () => {
 
       expect((await post('/api/admin/sales/receipt/email', { saleNumber: number })).status).toBe(400);
       expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, buyerEmail: 'bad' })).status).toBe(400);
+      expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, buyerEmail: `${'a'.repeat(250)}@example.com` })).status).toBe(400);
       expect((await post('/api/admin/sales/receipt/printed', { saleNumber: number })).status).toBe(200);
+      provider.mockResolvedValueOnce(new Response('provider secret detail', { status: 500 }));
+      const failed = await post('/api/admin/sales/receipt/email', { saleNumber: number, buyerEmail: 'buyer@example.com' });
+      expect(failed.status).toBe(502);
+      expect(await failed.text()).not.toContain('provider secret detail');
+      const beforeRetry = await env.DB.prepare('SELECT receipt_emailed_at, buyer_email FROM sales WHERE sale_number = ?')
+        .bind(number).first<{ receipt_emailed_at: string | null; buyer_email: string | null }>();
+      expect(beforeRetry).toEqual({ receipt_emailed_at: null, buyer_email: null });
       expect((await post('/api/admin/sales/receipt/email', { saleNumber: number, buyerEmail: 'buyer@example.com' })).status).toBe(200);
-      expect(provider).toHaveBeenCalledTimes(1);
-      const sent = JSON.parse(String(provider.mock.calls[0][1]?.body)) as { html: string; text: string };
+      expect(provider).toHaveBeenCalledTimes(2);
+      const sent = JSON.parse(String(provider.mock.calls[1][1]?.body)) as { html: string; text: string };
       expect(sent.html).toContain('Edition 1 of 5');
       expect(sent.text).toContain('Edition 1 of 5');
       expect(sent.html).not.toContain('onerror');

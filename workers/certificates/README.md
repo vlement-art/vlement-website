@@ -73,6 +73,36 @@ For a `503`, configure the secret for the exact Worker environment serving the
 request (`staging` or `production`) and redeploy/restart as required by
 Cloudflare.
 
+### Sale receipts and export
+
+The receipt endpoints use the same admin authorization and rate limit as sales.
+`GET /api/admin/sales/receipt?saleNumber=...` returns HTML; notes are omitted
+unless `includeNotes=1` is supplied. `POST /api/admin/sales/receipt/printed`
+records that the print dialog was opened, not that a physical receipt was
+printed. `POST /api/admin/sales/receipt/email` sends via Resend and records a
+successful provider acceptance, not delivery. Receipt emails omit notes.
+
+Configure `SELLER_NAME`, `SELLER_WEBSITE`, `SELLER_EMAIL`, and
+`RECEIPT_FROM_ADDRESS` in the relevant Worker's Wrangler environment; optional
+variables are `SELLER_ADDRESS` and `RECEIPT_REPLY_TO`. Add `RESEND_API_KEY` as
+a Worker secret, never as a public site variable or a repository file. For
+production, add the non-secret variables under `env.production.vars` in
+`workers/certificates/wrangler.jsonc` before deploying, so subsequent Wrangler
+deployments retain them. The sender domain must be verified with Resend.
+The receipt logo must be available at `https://vlement.com/images/vaa-logo.png`.
+
+The migration is tracked by Wrangler: repeated `d1 migrations apply` runs skip
+already-applied migrations. SQLite does not support `ADD COLUMN IF NOT EXISTS`;
+do not manually replay the migration SQL. The production deployment workflow
+applies pending migrations and deploys the Worker after a push to `main`, so
+complete the external setup and review the production environment approval
+before merging.
+
+Recent sales can be exported to Excel; D1 remains authoritative. Sales CSV is
+also included in the encrypted backup when D1 is exported, from that same
+snapshot. The CSV prefixes formula-like text with an apostrophe to avoid
+spreadsheet formula execution.
+
 Authenticated routes:
 
 - `GET /api/admin/sales/artworks` returns artwork title, category, price,

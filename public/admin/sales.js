@@ -16,6 +16,7 @@
   let editionInput;
   let priceInput;
   let currencyInput;
+  let sheetJsPromise;
 
   const element = (tag, text, className) => {
     const node = document.createElement(tag);
@@ -303,6 +304,109 @@
     if (list) renderSalesList(list);
   }
 
+  function ensureSheetJs() {
+    if (window.XLSX?.utils) return Promise.resolve(window.XLSX);
+    if (!sheetJsPromise) {
+      sheetJsPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+        script.crossOrigin = 'anonymous';
+        script.onload = () => window.XLSX?.utils ? resolve(window.XLSX) : reject(new Error('SheetJS did not load correctly.'));
+        script.onerror = () => reject(new Error('Could not load the Excel export library. Check your connection and try again.'));
+        document.head.appendChild(script);
+      }).catch(error => {
+        sheetJsPromise = null;
+        throw error;
+      });
+    }
+    return sheetJsPromise;
+  }
+
+  async function exportSales(button) {
+    button.disabled = true;
+    try {
+      setStatus('Loading sales for Excel export…');
+      const [xlsx, exceljs] = await Promise.all([ensureSheetJs(), ensureExcelJsLibrary()]);
+      const all = [];
+      let totalSales = 0;
+      let nextPage = 1;
+      do {
+        let result;
+        for (let attempt = 0; ; attempt++) {
+          try {
+            result = await apiRequest(`/api/admin/sales?page=${nextPage}&per_page=100`);
+            break;
+          } catch (error) {
+            if (error.status !== 429 || attempt >= 2) throw error;
+            setStatus('Sales service is busy; waiting before continuing the export…');
+            await new Promise(resolve => setTimeout(resolve, 61_000));
+          }
+        }
+        if (!Array.isArray(result.sales) || !Number.isInteger(result.total)) throw new Error('Sales service returned an invalid export page.');
+        totalSales = result.total;
+        if (!result.sales.length && all.length < totalSales) throw new Error('Sales changed during export. Please try again.');
+        all.push(...result.sales);
+        nextPage++;
+        setStatus(`Loading sales for Excel export… ${all.length} of ${totalSales}`);
+      } while (all.length < totalSales);
+      if (all.length !== totalSales || new Set(all.map(sale => sale.sale_number)).size !== all.length) {
+        throw new Error('Sales changed during export. Please try again.');
+      }
+      const titles = new Map(artworks.map(artwork => [artwork.slug, artwork.title]));
+      const headers = [
+        'Sale number', 'Sale date', 'Artwork slug', 'Artwork title', 'Item type',
+        'Edition number', 'Buyer name', 'Buyer email', 'Price', 'Currency',
+        'Status', 'Notes', 'Receipt printed at', 'Receipt emailed at'
+      ];
+      const rows = all.map(sale => [
+        sale.sale_number, new Date(`${sale.sale_date}T00:00:00Z`), sale.artwork_slug,
+        titles.get(sale.artwork_slug) || sale.artwork_slug, TYPES[sale.item_type] || sale.item_type,
+        sale.item_type === 'limited_edition' ? sale.edition_number : sale.item_type === 'open_edition' ? sale.open_edition_number : null,
+        sale.buyer_name, sale.buyer_email || '', Number(sale.price), sale.currency, sale.status,
+        sale.notes || '', sale.receipt_printed_at ? new Date(sale.receipt_printed_at) : null,
+        sale.receipt_emailed_at ? new Date(sale.receipt_emailed_at) : null
+      ]);
+      const book = xlsx.utils.book_new();
+      const sheet = xlsx.utils.aoa_to_sheet([headers, ...rows], { cellDates: true });
+      xlsx.utils.book_append_sheet(book, sheet, 'Sales');
+      const workbook = new exceljs.Workbook();
+      await workbook.xlsx.load(xlsx.write(book, { type: 'array', bookType: 'xlsx', cellDates: true }));
+      const worksheet = workbook.getWorksheet('Sales');
+      if (!worksheet) throw new Error('Could not create the Sales worksheet.');
+      worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+      [24, 16, 28, 32, 20, 18, 28, 32, 16, 12, 14, 48, 24, 24]
+        .forEach((width, index) => { worksheet.getColumn(index + 1).width = width; });
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getColumn(2).numFmt = 'yyyy-mm-dd';
+      worksheet.getColumn(9).numFmt = '0.00';
+      worksheet.getColumn(13).numFmt = 'yyyy-mm-dd hh:mm:ss';
+      worksheet.getColumn(14).numFmt = 'yyyy-mm-dd hh:mm:ss';
+      all.forEach((sale, index) => {
+        if (sale.status === 'cancelled') {
+          worksheet.getRow(index + 2).eachCell({ includeEmpty: true }, cell => {
+            cell.font = { color: { argb: 'FF888888' }, strike: true };
+          });
+        }
+      });
+      const bytes = await workbook.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `vlement-sales-${localDate()}.xlsx`;
+        link.click();
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      setStatus(`Downloaded ${all.length} sales. D1 remains the source of truth.`, 'success');
+    } catch (error) {
+      setStatus(`Excel export failed: ${error.message}`, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function displaySale(sale) {
     const artwork = selectedArtwork();
     const itemType = TYPES[sale.item_type] || sale.item_type;
@@ -531,7 +635,12 @@
     const formContainer = element('section');
     const recentContainer = element('section');
     recentContainer.hidden = true;
-    recentContainer.id = 'sales-recent-list';
+    const exportButton = element('button', 'Download Excel', 'btn');
+    exportButton.type = 'button';
+    exportButton.addEventListener('click', () => exportSales(exportButton));
+    const recentList = element('div');
+    recentList.id = 'sales-recent-list';
+    recentContainer.append(exportButton, recentList);
     status = element('div', '', 'status-banner info');
     status.setAttribute('role', 'status');
     status.hidden = true;

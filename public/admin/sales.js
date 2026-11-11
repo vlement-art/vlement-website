@@ -16,6 +16,7 @@
   let editionInput;
   let priceInput;
   let currencyInput;
+  let sheetJsPromise;
 
   const element = (tag, text, className) => {
     const node = document.createElement(tag);
@@ -30,7 +31,7 @@
     status.hidden = !message;
   }
 
-  async function apiRequest(path, options = {}) {
+  async function apiRequest(path, options = {}, responseType = 'json') {
     const base = window.CERTIFICATES_API_URL;
     if (!base) throw new Error('Sales are not configured until the certificate Worker URL is set.');
     const token = window.VlementAdmin?.getToken();
@@ -49,9 +50,11 @@
     } catch {
       throw new Error('Could not reach the sales service. Check the connection and try again.');
     }
-    const payload = await response.json().catch(() => ({}));
+    const payload = response.ok && responseType === 'text'
+      ? await response.text()
+      : await response.json().catch(() => ({}));
     if (response.status === 401) {
-      throw new Error('Your GitHub sign-in is missing or expired. Sign out and sign in again.');
+      throw new Error(`Your GitHub sign-in is missing or expired. Sign out and sign in again.${payload.error ? ` ${payload.error}` : ''}`);
     }
     if (response.status === 403) {
       throw new Error('The certificate Worker rejected this GitHub account. Check its allowed user ID and repository write access.');
@@ -59,7 +62,11 @@
     if (response.status === 503) {
       throw new Error(payload.error || 'Certificate Worker admin authorization is not configured.');
     }
-    if (!response.ok) throw new Error(payload.error || `Sales service returned ${response.status}.`);
+    if (!response.ok) {
+      const error = new Error(payload.error || `Sales service returned ${response.status}.`);
+      error.status = response.status;
+      throw error;
+    }
     return payload;
   }
 
@@ -257,6 +264,12 @@
       row.append(title, detail);
       if (sale.notes) row.append(element('p', sale.notes, 'hint'));
       row.append(element('p', sale.status === 'cancelled' ? 'Cancelled' : 'Active', 'hint'));
+      if (sale.receipt_printed_at) row.append(element('p', `Printed ${new Date(sale.receipt_printed_at).toLocaleString()}`, 'hint'));
+      if (sale.receipt_emailed_at) row.append(element('p', `Emailed ${new Date(sale.receipt_emailed_at).toLocaleString()}`, 'hint'));
+      const receipt = element('button', 'Receipt', 'btn');
+      receipt.type = 'button';
+      receipt.addEventListener('click', () => openReceiptDialog(sale));
+      row.append(receipt);
       if (sale.certificate_id) {
         row.append(element('p', 'A certificate was issued for this sale. Manual follow-up is required.', 'hint'));
       }
@@ -289,6 +302,111 @@
     total = Number(result.total || 0);
     const list = document.getElementById('sales-recent-list');
     if (list) renderSalesList(list);
+  }
+
+  function ensureSheetJs() {
+    if (window.XLSX?.utils) return Promise.resolve(window.XLSX);
+    if (!sheetJsPromise) {
+      sheetJsPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+        script.crossOrigin = 'anonymous';
+        script.onload = () => window.XLSX?.utils ? resolve(window.XLSX) : reject(new Error('SheetJS did not load correctly.'));
+        script.onerror = () => reject(new Error('Could not load the Excel export library. Check your connection and try again.'));
+        document.head.appendChild(script);
+      }).catch(error => {
+        sheetJsPromise = null;
+        throw error;
+      });
+    }
+    return sheetJsPromise;
+  }
+
+  async function exportSales(button) {
+    button.disabled = true;
+    try {
+      setStatus('Loading sales for Excel export…');
+      const [xlsx, exceljs] = await Promise.all([ensureSheetJs(), ensureExcelJsLibrary()]);
+      const all = [];
+      let totalSales = 0;
+      let nextPage = 1;
+      do {
+        let result;
+        for (let attempt = 0; ; attempt++) {
+          try {
+            result = await apiRequest(`/api/admin/sales?page=${nextPage}&per_page=100`);
+            break;
+          } catch (error) {
+            if (error.status !== 429 || attempt >= 2) throw error;
+            setStatus('Sales service is busy; waiting before continuing the export…');
+            await new Promise(resolve => setTimeout(resolve, 61_000));
+          }
+        }
+        if (!Array.isArray(result.sales) || !Number.isInteger(result.total)) throw new Error('Sales service returned an invalid export page.');
+        totalSales = result.total;
+        if (!result.sales.length && all.length < totalSales) throw new Error('Sales changed during export. Please try again.');
+        all.push(...result.sales);
+        nextPage++;
+        setStatus(`Loading sales for Excel export… ${all.length} of ${totalSales}`);
+      } while (all.length < totalSales);
+      if (all.length !== totalSales || new Set(all.map(sale => sale.sale_number)).size !== all.length) {
+        throw new Error('Sales changed during export. Please try again.');
+      }
+      const titles = new Map(artworks.map(artwork => [artwork.slug, artwork.title]));
+      const headers = [
+        'Sale number', 'Sale date', 'Artwork slug', 'Artwork title', 'Item type',
+        'Edition number', 'Buyer name', 'Buyer email', 'Price', 'Currency',
+        'Status', 'Notes', 'Receipt printed at', 'Receipt emailed at'
+      ];
+      const rows = all.map(sale => [
+        sale.sale_number, new Date(`${sale.sale_date}T00:00:00Z`), sale.artwork_slug,
+        titles.get(sale.artwork_slug) || sale.artwork_slug, TYPES[sale.item_type] || sale.item_type,
+        sale.item_type === 'limited_edition' ? sale.edition_number : sale.item_type === 'open_edition' ? sale.open_edition_number : null,
+        sale.buyer_name, sale.buyer_email || '', Number(sale.price), sale.currency, sale.status,
+        sale.notes || '', sale.receipt_printed_at ? new Date(sale.receipt_printed_at) : null,
+        sale.receipt_emailed_at ? new Date(sale.receipt_emailed_at) : null
+      ]);
+      const book = xlsx.utils.book_new();
+      const sheet = xlsx.utils.aoa_to_sheet([headers, ...rows], {
+        cellDates: false, dateNF: 'yyyy-mm-dd hh:mm:ss'
+      });
+      xlsx.utils.book_append_sheet(book, sheet, 'Sales');
+      const workbook = new exceljs.Workbook();
+      await workbook.xlsx.load(xlsx.write(book, { type: 'array', bookType: 'xlsx' }));
+      const worksheet = workbook.getWorksheet('Sales');
+      if (!worksheet) throw new Error('Could not create the Sales worksheet.');
+      worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+      [24, 16, 28, 32, 20, 18, 28, 32, 16, 12, 14, 48, 24, 24]
+        .forEach((width, index) => { worksheet.getColumn(index + 1).width = width; });
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getColumn(2).numFmt = 'yyyy-mm-dd';
+      worksheet.getColumn(9).numFmt = '0.00';
+      worksheet.getColumn(13).numFmt = 'yyyy-mm-dd hh:mm:ss';
+      worksheet.getColumn(14).numFmt = 'yyyy-mm-dd hh:mm:ss';
+      all.forEach((sale, index) => {
+        if (sale.status === 'cancelled') {
+          worksheet.getRow(index + 2).eachCell({ includeEmpty: true }, cell => {
+            cell.font = { color: { argb: 'FF888888' }, strike: true };
+          });
+        }
+      });
+      const bytes = await workbook.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `vlement-sales-${localDate()}.xlsx`;
+        link.click();
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      setStatus(`Downloaded ${all.length} sales. D1 remains the source of truth.`, 'success');
+    } catch (error) {
+      setStatus(`Excel export failed: ${error.message}`, 'error');
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function displaySale(sale) {
@@ -375,14 +493,102 @@
           throw new Error(`Sale ${recorded.sale.sale_number} is saved, but artwork availability could not be updated. Retry the availability change in the artwork editor.`);
         }
       }
-      setStatus(`Recorded ${recorded.sale.sale_number}.`);
-      document.getElementById('sales-buyer-name').value = '';
-      document.getElementById('sales-buyer-email').value = '';
-      document.getElementById('sales-notes').value = '';
-      await Promise.all([loadArtworks(), loadSales(1)]);
+      openReceiptDialog(recorded.sale);
     } finally {
       submit.disabled = false;
     }
+  }
+
+  async function printReceipt(sale, container) {
+    const html = await apiRequest(`/api/admin/sales/receipt?saleNumber=${encodeURIComponent(sale.sale_number)}`, {}, 'text');
+    const frame = element('iframe');
+    frame.hidden = true;
+    frame.setAttribute('title', 'Receipt for printing');
+    frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
+    const loaded = new Promise((resolve, reject) => {
+      frame.onload = resolve;
+      frame.onerror = () => reject(new Error('Could not prepare the receipt for printing.'));
+    });
+    frame.srcdoc = html;
+    container.append(frame);
+    await loaded;
+    if (!frame.contentWindow) throw new Error('Could not open the print dialog.');
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setStatus('Print dialog opened. Saving the print record…');
+    try {
+      const result = await apiRequest('/api/admin/sales/receipt/printed', {
+        method: 'POST', body: JSON.stringify({ saleNumber: sale.sale_number })
+      });
+      sale.receipt_printed_at = result.sale.receipt_printed_at;
+    } catch (error) {
+      throw new Error(`Print dialog opened, but the print record could not be saved: ${error.message}`);
+    }
+  }
+
+  function openReceiptDialog(sale) {
+    const modal = document.getElementById('modal');
+    modal.replaceChildren();
+    const heading = element('h2', 'Sale recorded');
+    if (sale.status === 'cancelled') heading.textContent = 'Cancelled sale receipt';
+    const artwork = artworks.find(item => item.slug === sale.artwork_slug);
+    const summary = element('p', `${sale.sale_number} · ${artwork?.title || sale.artwork_slug} · ${TYPES[sale.item_type] || sale.item_type} · ${sale.buyer_name} · ${formatPrice(sale.price, sale.currency)}`);
+    const receiptStatus = element('div', '', 'status-banner info');
+    receiptStatus.setAttribute('role', 'status');
+    receiptStatus.hidden = true;
+    status = receiptStatus;
+    const email = input('receipt-buyer-email', 'email', sale.buyer_email || '');
+    email.maxLength = 254;
+    const emailField = createField('Buyer email for receipt', email, 'Confirm the email address before sending.');
+    const actions = element('div', undefined, 'modal-footer');
+    const print = element('button', 'Print', 'btn');
+    const send = element('button', 'Email', 'btn');
+    const both = element('button', 'Both', 'btn primary');
+    const skip = element('button', 'Skip', 'btn');
+    const buttons = [print, send, both, skip];
+    buttons.forEach(button => { button.type = 'button'; actions.append(button); });
+    skip.addEventListener('click', () => { document.getElementById('modal-overlay').hidden = true; });
+    const run = async (shouldPrint, shouldEmail) => {
+      buttons.forEach(button => { button.disabled = true; });
+      let printed = false;
+      try {
+        if (shouldPrint) {
+          setStatus('Preparing receipt for printing…');
+          await printReceipt(sale, modal);
+          printed = true;
+        }
+        if (shouldEmail) {
+          if (!email.value.trim() || !email.checkValidity()) {
+            throw new Error('Enter a valid buyer email address.');
+          }
+          const warning = sale.status === 'cancelled' ? ' This sale is CANCELLED.' : '';
+          if (!window.confirm(`Email the receipt to ${email.value.trim()}?${warning}`)) {
+            setStatus(printed ? 'Print dialog opened. Email was not sent.' : 'Email was not sent.');
+            return;
+          }
+          setStatus(printed ? 'Print dialog opened. Sending email…' : 'Sending receipt email…');
+          await apiRequest('/api/admin/sales/receipt/email', {
+            method: 'POST',
+            body: JSON.stringify({
+              saleNumber: sale.sale_number,
+              buyerEmail: email.value.trim(),
+              ...(sale.status === 'cancelled' ? { confirmCancelled: true } : {})
+            })
+          });
+          if (!sale.buyer_email) sale.buyer_email = email.value.trim();
+        }
+        setStatus(printed && shouldEmail ? 'Print dialog opened. Receipt email sent.'
+          : printed ? 'Print dialog opened.' : 'Receipt email sent.', 'success');
+      } catch (error) {
+        setStatus(`${printed ? 'Print dialog opened. ' : ''}${error.message}`, 'error');
+      } finally {
+        buttons.forEach(button => { button.disabled = false; });
+      }
+    };
+    print.addEventListener('click', () => run(true, false));
+    send.addEventListener('click', () => run(false, true));
+    both.addEventListener('click', () => run(true, true));
+    modal.append(heading, summary, receiptStatus, emailField, actions);
   }
 
   async function cancelRecordedSale(sale) {
@@ -431,7 +637,12 @@
     const formContainer = element('section');
     const recentContainer = element('section');
     recentContainer.hidden = true;
-    recentContainer.id = 'sales-recent-list';
+    const exportButton = element('button', 'Download Excel', 'btn');
+    exportButton.type = 'button';
+    exportButton.addEventListener('click', () => exportSales(exportButton));
+    const recentList = element('div');
+    recentList.id = 'sales-recent-list';
+    recentContainer.append(exportButton, recentList);
     status = element('div', '', 'status-banner info');
     status.setAttribute('role', 'status');
     status.hidden = true;

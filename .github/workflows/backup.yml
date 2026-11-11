@@ -116,6 +116,8 @@ jobs:
               exit 1
             fi
             echo "D1 export verified as non-empty and containing table definitions."
+            python3 scripts/export-backup-sales.py "$BACKUP_DIR/d1.sql" "$BACKUP_DIR/sales.csv"
+            echo "Sales CSV generated from the same D1 export."
             if ! npx wrangler d1 time-travel info "$D1_DATABASE_NAME" --config workers/certificates/wrangler.jsonc --env production --json; then
               echo "::warning::Could not retrieve D1 Time Travel bookmark information."
             fi

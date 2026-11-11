@@ -5,6 +5,13 @@ export interface Env {
   ALLOWED_GITHUB_USER_ID?: string;
   ALLOWED_ORIGIN: string;
   ARTWORK_REPOSITORY: string;
+  SELLER_NAME?: string;
+  SELLER_WEBSITE?: string;
+  SELLER_EMAIL?: string;
+  SELLER_ADDRESS?: string;
+  RESEND_API_KEY?: string;
+  RECEIPT_FROM_ADDRESS?: string;
+  RECEIPT_REPLY_TO?: string;
 }
 
 export interface ArtworkSnapshot {

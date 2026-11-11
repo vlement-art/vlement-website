@@ -28,8 +28,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Test Sales authentication
-        run: node --test test/sales-admin.test.mjs
+      - name: Test Sales authentication and Excel export
+        run: |
+          curl --fail --silent --show-error --location --retry 3 \
+            https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js \
+            --output "$RUNNER_TEMP/sales-sheetjs.cjs"
+          actual="$(openssl dgst -sha384 -binary "$RUNNER_TEMP/sales-sheetjs.cjs" | openssl base64 -A)"
+          test "$actual" = "vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw"
+          cp public/admin/exceljs.min.js "$RUNNER_TEMP/sales-exceljs.cjs"
+          SALES_TEST_SHEETJS="$RUNNER_TEMP/sales-sheetjs.cjs" \
+          SALES_TEST_EXCELJS="$RUNNER_TEMP/sales-exceljs.cjs" \
+            node --test test/sales-admin.test.mjs
+          PYTHONDONTWRITEBYTECODE=1 python3 test/backup-sales.test.py
 
       - name: Build
         run: npm run build

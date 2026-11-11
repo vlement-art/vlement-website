@@ -68,6 +68,13 @@ and the GitHub Actions secrets described in [`BACKUP.md`](BACKUP.md). Backup
 artifacts are retained for 30 days; download and store a verified copy outside
 GitHub and Cloudflare.
 
+The **Sales** section can print or email receipts and export all sales to Excel.
+The spreadsheet is an export; D1 remains the source of truth. Receipts omit
+internal notes by default. Receipt email requires the certificate Worker seller
+and Resend settings documented in `workers/certificates/README.md`. The
+encrypted backup includes a sales CSV generated from the same D1 snapshot when
+the database export is configured.
+
 ## Local development
 
 Requires Node.js 22 or later.

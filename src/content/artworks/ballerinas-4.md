@@ -17,11 +17,12 @@ price: £110
 editionType: open
 support: Print-Hahnemühle Photo Rag Giclée
 signed: true
-displayOrder: 1
+displayOrder: 50
 imageZoom: /images/artwork/ballerinas.webp
 imageLabel: other
 ---
 
 Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.
+
 
 

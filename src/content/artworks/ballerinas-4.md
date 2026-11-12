@@ -17,7 +17,7 @@ price: £75
 editionType: open
 support: Print-Hahnemühle Photo Rag Giclée
 signed: true
-displayOrder: 50
+displayOrder: 0
 imageZoom: /images/artwork/ballerinas.webp
 imageLabel: other
 ---

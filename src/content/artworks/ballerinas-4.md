@@ -20,6 +20,11 @@ signed: true
 displayOrder: 0
 imageZoom: /images/artwork/ballerinas.webp
 imageLabel: other
+images:
+  - src: /images/artwork/ballerinas-48e56aee-c0c4-40a9-9541-eaef6183ce16.jpg
+    zoomSrc: /images/artwork/ballerinas-48e56aee-c0c4-40a9-9541-eaef6183ce16-zoom.jpg
+    alt: Two dancers appear suspended in a moment of exuberant movement, their outstretched arms and sweeping costumes creating a sense of flight
+    label: room
 ---
 
 Painted in a richly textured, impressionistic style, the figures emerge in deep green and russet tones against a glowing ochre-gold backdrop.

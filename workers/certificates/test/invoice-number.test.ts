@@ -5,8 +5,8 @@ import { ensureInvoiceNumber } from '../src/invoice-number';
 async function insertSale(saleNumber: string) {
   await env.DB.prepare(
     `INSERT INTO sales (id, artwork_slug, item_type, sale_number, buyer_name, sale_date, price, currency, created_at, created_by)
-     VALUES (?, 'x', 'original', ?, 'Buyer', '2026-01-01', 10, 'GBP', '2026-01-01T00:00:00Z', 'test')`,
-  ).bind(crypto.randomUUID(), saleNumber).run();
+     VALUES (?, ?, 'original', ?, 'Buyer', '2026-01-01', 10, 'GBP', '2026-01-01T00:00:00Z', 'test')`,
+       ).bind(crypto.randomUUID(), `x-${saleNumber}`, saleNumber).run();
 }
 
 describe('invoice numbers', () => {

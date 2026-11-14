@@ -48,7 +48,7 @@ function githubApi(artworks: Record<string, TestArtwork>) {
       return Response.json({
         name: `${file[1]}.md`,
         type: 'file',
-        content: btoa(markdown),
+        content: btoa(String.fromCharCode(...new TextEncoder().encode(markdown))),
       });
     }
     return Response.json({ message: 'Not found' }, { status: 404 });
@@ -383,7 +383,7 @@ describe('sales endpoints', () => {
   it('renders escaped receipts, records print and email actions, and protects cancelled receipts', async () => {
     const slug = `receipt-${crypto.randomUUID().slice(0, 8)}`;
     const github = githubApi({
-      [slug]: { title: 'Limited & artwork', category: 'Print', editionType: 'limited', editionSize: 5 },
+      [slug]: { title: 'Limited & Soñar artwork', category: 'Print', editionType: 'limited', editionSize: 5 },
     });
     const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       Response.json({ id: 'provider-id' }));
@@ -442,7 +442,7 @@ describe('sales endpoints', () => {
       Object.assign(receiptEnv, sellerSettings);
       const hidden = await (await get(receiptUrl)).text();
       expect(hidden).toContain('&lt;script&gt;buyer&lt;/script&gt;');
-      expect(hidden).toContain('Limited &amp; artwork');
+      expect(hidden).toContain('Limited &amp; Soñar artwork');
       expect(hidden).toContain('Edition 1 of 5');
       expect(hidden).not.toContain('onerror');
       const visible = await (await get(`${receiptUrl}&includeNotes=1`)).text();
@@ -467,6 +467,20 @@ describe('sales endpoints', () => {
       expect(sent.text).toContain('Edition 1 of 5');
       expect(sent.html).not.toContain('onerror');
       expect(sent).not.toHaveProperty('reply_to');
+      const invoiceNo = (await env.DB.prepare('SELECT invoice_number FROM sales WHERE sale_number = ?')
+        .bind(number).first<{ invoice_number: string }>())!.invoice_number;
+      expect(invoiceNo).toMatch(/^VL-\d{6}$/);
+      const withAttachment = sent as unknown as { subject: string; attachments: Array<{ filename: string; content: string }> };
+      expect(withAttachment.subject).toBe(`Invoice ${invoiceNo}`);
+      expect(withAttachment.attachments).toHaveLength(1);
+      expect(withAttachment.attachments[0].filename).toBe(`Invoice_${invoiceNo}.pdf`);
+      expect(atob(withAttachment.attachments[0].content).startsWith('%PDF')).toBe(true);
+      const pdfResponse = await get(`/api/admin/sales/invoice-pdf?saleNumber=${encodeURIComponent(number)}`);
+      expect(pdfResponse.status).toBe(200);
+      expect(pdfResponse.headers.get('Content-Type')).toBe('application/pdf');
+      expect(pdfResponse.headers.get('Content-Disposition')).toContain(`filename="Invoice_${invoiceNo}.pdf"`);
+      expect(new TextDecoder().decode((await pdfResponse.arrayBuffer()).slice(0, 5))).toBe('%PDF-');
+      expect((await get('/api/admin/sales/invoice-pdf?saleNumber=x', false)).status).toBe(401);
       const listed = await (await get('/api/admin/sales?per_page=100')).json() as {
         sales: Array<{ sale_number: string; buyer_email: string; receipt_printed_at: string; receipt_emailed_at: string }>;
       };

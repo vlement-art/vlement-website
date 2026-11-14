@@ -4,6 +4,7 @@ import { D1BackupWorkflow } from './backup-workflow';
 import { handleArtworkCodeRequest } from './artwork-codes';
 import { renderReceipt } from './receipt';
 import { ensureInvoiceNumber } from './invoice-number';
+import { invoiceFileName, renderInvoicePdf } from './invoice-pdf';
 import type { ReceiptSale } from './receipt';
 export { D1BackupWorkflow };
 
@@ -305,7 +306,19 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
       return jsonResponse({ error: 'Invoice email is not configured.' }, 503);
     }
     const artwork = await receiptArtwork(request, env, sale.artwork_slug);
-    const receipt = renderReceipt({ ...sale, buyer_email: recipient }, artwork, env);
+    const emailSale = { ...sale, buyer_email: recipient };
+    const receipt = renderReceipt(emailSale, artwork, env);
+    let pdfBase64: string;
+    try {
+      const pdfBytes = await renderInvoicePdf(emailSale, artwork, env);
+      let binary = '';
+      for (let i = 0; i < pdfBytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...pdfBytes.subarray(i, i + 0x8000));
+      }
+      pdfBase64 = btoa(binary);
+    } catch {
+      return jsonResponse({ error: 'The invoice PDF could not be created.' }, 500);
+    }
     let response: Response;
     try {
       response = await fetch('https://api.resend.com/emails', {
@@ -315,9 +328,10 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
           from: env.RECEIPT_FROM_ADDRESS,
           to: [recipient],
           ...(env.RECEIPT_REPLY_TO?.trim() ? { reply_to: env.RECEIPT_REPLY_TO.trim() } : {}),
-          subject: `Your receipt from Vlement – ${sale.sale_number}`,
+          subject: `Invoice ${sale.invoice_number}`,
           html: receipt.html,
           text: receipt.text,
+          attachments: [{ filename: invoiceFileName(sale.invoice_number!), content: pdfBase64 }],
         }),
       });
     } catch {
@@ -338,6 +352,18 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
     const receipt = renderReceipt(sale, artwork, env, url.searchParams.get('includeNotes') === '1');
     return new Response(receipt.html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  if (path === '/api/admin/sales/invoice-pdf' && request.method === 'GET') {
+    const artwork = await receiptArtwork(request, env, sale.artwork_slug);
+    const bytes = await renderInvoicePdf(sale, artwork, env);
+    return new Response(bytes, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${invoiceFileName(sale.invoice_number!)}"`,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
     });
   }
   return jsonResponse({ error: 'Not found.' }, 404);
@@ -1057,7 +1083,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     await enforceSalesRateLimit(env);
   }
 
-  if ((request.method === 'GET' && path === '/api/admin/sales/receipt')
+  if ((request.method === 'GET' && ['/api/admin/sales/receipt', '/api/admin/sales/invoice-pdf'].includes(path))
     || (request.method === 'POST' && ['/api/admin/sales/receipt/printed', '/api/admin/sales/receipt/email'].includes(path))) {
     return handleReceipt(request, env, path);
   }

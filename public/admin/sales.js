@@ -379,15 +379,17 @@
       const headers = [
         'Sale number', 'Sale date', 'Artwork slug', 'Artwork title', 'Item type',
         'Edition number', 'Buyer name', 'Buyer email', 'Price', 'Delivery', 'Total', 'Currency',
-        'Status', 'Notes', 'Invoice printed at', 'Invoice emailed at'
+        'Status', 'Notes', 'Invoice number', 'Invoice printed at', 'Invoice emailed at'
       ];
+      const column = name => headers.indexOf(name) + 1;
       const rows = all.map(sale => [
         sale.sale_number, new Date(`${sale.sale_date}T00:00:00Z`), sale.artwork_slug,
         titles.get(sale.artwork_slug) || sale.artwork_slug, TYPES[sale.item_type] || sale.item_type,
         sale.item_type === 'limited_edition' ? sale.edition_number : sale.item_type === 'open_edition' ? sale.open_edition_number : null,
         sale.buyer_name, sale.buyer_email || '', Number(sale.price), Number(sale.delivery) || 0,
         Number(sale.price) + (Number(sale.delivery) || 0), sale.currency, sale.status,
-        sale.notes || '', sale.receipt_printed_at ? new Date(sale.receipt_printed_at) : null,
+        sale.notes || '', sale.invoice_number || '',
+        sale.receipt_printed_at ? new Date(sale.receipt_printed_at) : null,
         sale.receipt_emailed_at ? new Date(sale.receipt_emailed_at) : null
       ]);
       const book = xlsx.utils.book_new();
@@ -400,13 +402,14 @@
       const worksheet = workbook.getWorksheet('Sales');
       if (!worksheet) throw new Error('Could not create the Sales worksheet.');
       worksheet.views = [{ state: 'frozen', ySplit: 1 }];
-      [24, 16, 28, 32, 20, 18, 28, 32, 16, 12, 14, 48, 24, 24]
+      [24, 16, 28, 32, 20, 18, 28, 32, 12, 12, 12, 10, 12, 48, 18, 24, 24]
         .forEach((width, index) => { worksheet.getColumn(index + 1).width = width; });
       worksheet.getRow(1).font = { bold: true };
-      worksheet.getColumn(2).numFmt = 'yyyy-mm-dd';
-      worksheet.getColumn(9).numFmt = '0.00';
-      worksheet.getColumn(13).numFmt = 'yyyy-mm-dd hh:mm:ss';
-      worksheet.getColumn(14).numFmt = 'yyyy-mm-dd hh:mm:ss';
+      worksheet.getColumn(column('Sale date')).numFmt = 'yyyy-mm-dd';
+      ['Price', 'Delivery', 'Total'].forEach(name => { worksheet.getColumn(column(name)).numFmt = '0.00'; });
+      ['Invoice printed at', 'Invoice emailed at'].forEach(name => {
+        worksheet.getColumn(column(name)).numFmt = 'yyyy-mm-dd hh:mm:ss';
+      });
       all.forEach((sale, index) => {
         if (sale.status === 'cancelled') {
           worksheet.getRow(index + 2).eachCell({ includeEmpty: true }, cell => {

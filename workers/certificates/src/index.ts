@@ -52,6 +52,7 @@ function corsHeaders(request: Request, env: Env): Headers {
     'Vary': 'Origin',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Expose-Headers': 'Content-Disposition',
     'Access-Control-Max-Age': '600',
   });
   if (request.headers.get('Origin') === env.ALLOWED_ORIGIN) {

@@ -51,9 +51,14 @@
     } catch {
       throw new Error('Could not reach the sales service. Check the connection and try again.');
     }
-    const payload = response.ok && responseType === 'text'
-      ? await response.text()
-      : await response.json().catch(() => ({}));
+    const payload = response.ok && responseType === 'blob'
+      ? {
+        blob: await response.blob(),
+        filename: /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1]
+      }
+      : response.ok && responseType === 'text'
+        ? await response.text()
+        : await response.json().catch(() => ({}));
     if (response.status === 401) {
       throw new Error(`Your GitHub sign-in is missing or expired. Sign out and sign in again.${payload.error ? ` ${payload.error}` : ''}`);
     }
@@ -274,6 +279,19 @@
       receipt.type = 'button';
       receipt.addEventListener('click', () => openReceiptDialog(sale));
       row.append(receipt);
+      const pdf = element('button', 'Download PDF', 'btn');
+      pdf.type = 'button';
+      pdf.addEventListener('click', async () => {
+        pdf.disabled = true;
+        try {
+          await downloadInvoicePdf(sale);
+        } catch (error) {
+          setStatus(error.message, 'error');
+        } finally {
+          pdf.disabled = false;
+        }
+      });
+      row.append(pdf);
       if (sale.certificate_id) {
         row.append(element('p', 'A certificate was issued for this sale. Manual follow-up is required.', 'hint'));
       }
@@ -536,6 +554,20 @@
     }
   }
 
+  async function downloadInvoicePdf(sale) {
+    const { blob, filename } = await apiRequest(
+      `/api/admin/sales/invoice-pdf?saleNumber=${encodeURIComponent(sale.sale_number)}`, {}, 'blob'
+    );
+    const url = URL.createObjectURL(blob);
+    const link = element('a');
+    link.href = url;
+    link.download = filename || `Invoice_${sale.invoice_number || sale.sale_number}.pdf`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
   function openReceiptDialog(sale) {
     const modal = document.getElementById('modal');
     modal.replaceChildren();
@@ -553,10 +585,23 @@
     const actions = element('div', undefined, 'modal-footer');
     const print = element('button', 'Print', 'btn');
     const send = element('button', 'Email', 'btn');
+    const download = element('button', 'Download PDF', 'btn');
     const both = element('button', 'Both', 'btn primary');
     const skip = element('button', 'Skip', 'btn');
-    const buttons = [print, send, both, skip];
+    const buttons = [print, download, send, both, skip];
     buttons.forEach(button => { button.type = 'button'; actions.append(button); });
+    download.addEventListener('click', async () => {
+      buttons.forEach(button => { button.disabled = true; });
+      try {
+        setStatus('Preparing PDF…');
+        await downloadInvoicePdf(sale);
+        setStatus('PDF downloaded.', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        buttons.forEach(button => { button.disabled = false; });
+      }
+    });
     skip.addEventListener('click', () => { document.getElementById('modal-overlay').hidden = true; });
     const run = async (shouldPrint, shouldEmail) => {
       buttons.forEach(button => { button.disabled = true; });

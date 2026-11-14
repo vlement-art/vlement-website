@@ -3,6 +3,7 @@ import type { CertificateType, Env, IssueRequest } from './types';
 import { D1BackupWorkflow } from './backup-workflow';
 import { handleArtworkCodeRequest } from './artwork-codes';
 import { renderReceipt } from './receipt';
+import { ensureInvoiceNumber } from './invoice-number';
 import type { ReceiptSale } from './receipt';
 export { D1BackupWorkflow };
 
@@ -246,7 +247,7 @@ async function receiptArtwork(request: Request, env: Env, slug: string) {
 async function receiptSale(env: Env, saleNumber: string): Promise<ReceiptSale | null> {
   return env.DB.prepare(
     `SELECT sale_number, artwork_slug, item_type, edition_number, buyer_name, buyer_email,
-            sale_date, price, currency, notes, status FROM sales WHERE sale_number = ?`,
+            sale_date, price, currency, notes, status, invoice_number FROM sales WHERE sale_number = ?`,
   ).bind(saleNumber).first<ReceiptSale>();
 }
 
@@ -281,6 +282,7 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
   if (missingSeller.length) {
     return jsonResponse({ error: `Receipt seller settings missing: ${missingSeller.join(', ')}.` }, 503);
   }
+  sale.invoice_number = await ensureInvoiceNumber(env.DB, sale.sale_number);
   if (path.endsWith('/email') && request.method === 'POST') {
     if (sale.status === 'cancelled' && input.confirmCancelled !== true) {
       return jsonResponse({ error: 'Confirm before emailing a cancelled receipt.' }, 400);

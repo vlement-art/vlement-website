@@ -12,6 +12,7 @@ export interface ReceiptSale {
   currency: string;
   notes: string;
   status: 'active' | 'cancelled';
+  invoice_number?: string | null;
 }
 
 export interface ReceiptArtwork {

@@ -41,7 +41,8 @@ export function renderReceipt(
     style: 'currency', currency: sale.currency,
   }).format(sale.price);
   const rows: Array<[string, string]> = [
-    ['Receipt number', sale.sale_number],
+    ['Invoice number', sale.invoice_number || sale.sale_number],
+    ['Sale number', sale.sale_number],
     ['Sale date', sale.sale_date],
     ['Artwork', artwork.title || sale.artwork_slug],
     ['Item type', type],
@@ -58,11 +59,11 @@ export function renderReceipt(
     .filter((value): value is string => Boolean(value?.trim()));
   const rowHtml = rows.map(([label, value]) => `<tr><td style="padding:8px 18px 8px 0;color:#666;vertical-align:top">${escapeHtml(label)}</td><td style="padding:8px 0;white-space:pre-wrap;vertical-align:top">${escapeHtml(value)}</td></tr>`).join('');
   const cancelled = sale.status === 'cancelled';
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Receipt</title><style>@media print { @page { size: A4; margin: 20mm; } body { margin: 0 !important; } .receipt { padding: 0 !important; } }</style></head>
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Invoice_${escapeHtml(sale.invoice_number || sale.sale_number)}</title><style>@media print { @page { size: A4; margin: 20mm; } body { margin: 0 !important; } .receipt { padding: 0 !important; } }</style></head>
 <body style="margin:0;background:#fff;color:#333;font-family:Arial,Helvetica,sans-serif">
 <table role="presentation" style="border-collapse:collapse;width:100%;background:#fff"><tr><td align="center">
 <table role="presentation" class="receipt" style="border-collapse:collapse;width:100%;max-width:680px;padding:32px"><tr><td style="padding:32px">
-<h1 style="font-size:28px;font-weight:600;margin:0 0 24px">Receipt</h1>
+<h1 style="font-size:28px;font-weight:600;margin:0 0 24px">INVOICE</h1>
 ${cancelled ? '<p style="font-size:20px;font-weight:bold;color:#444">CANCELLED</p>' : ''}
 <table role="presentation" style="border-collapse:collapse;width:100%;font-size:15px">${rowHtml}</table>
 <p style="margin:32px 0 8px;font-weight:bold">Seller</p>
@@ -71,7 +72,7 @@ ${cancelled ? '<p style="font-size:20px;font-weight:bold;color:#444">CANCELLED</
 <table role="presentation" style="border-collapse:collapse;margin-top:48px"><tr><td style="vertical-align:middle;padding-right:12px"><img src="https://vlement.com/images/vaa-logo.png" width="100" alt="Visual Artists Association logo" style="width:100px;height:auto;display:block"></td><td style="font-size:12px;color:#777;vertical-align:middle">Member of the Visual Artists Association</td></tr></table>
 </td></tr></table></td></tr></table></body></html>`;
   const text = [
-    'Receipt', ...(cancelled ? ['CANCELLED'] : []),
+    'INVOICE', ...(cancelled ? ['CANCELLED'] : []),
     ...rows.map(([label, value]) => `${label}: ${value}`),
     '', 'Seller', ...seller, '', 'Thank you for your purchase.',
     '', 'Member of the Visual Artists Association',

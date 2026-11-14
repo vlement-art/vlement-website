@@ -85,7 +85,7 @@
 
   function parseArtworkPrice(value) {
     const text = String(value || '');
-    const currency = text.includes('£') ? 'GBP' : text.includes('€') ? 'EUR' : text.includes('$') ? 'USD' : 'GBP';
+    const currency = text.includes('Â£') ? 'GBP' : text.includes('â‚¬') ? 'EUR' : text.includes('$') ? 'USD' : 'GBP';
     const numeric = Number(text.replace(/,/g, '').replace(/[^\d.-]/g, ''));
     return { price: Number.isFinite(numeric) ? numeric : 0, currency };
   }
@@ -234,11 +234,11 @@
   function saleDescription(sale) {
     const kind = TYPES[sale.item_type] || sale.item_type;
     const edition = sale.item_type === 'limited_edition'
-      ? ` · edition ${sale.edition_number}`
+      ? ` Â· edition ${sale.edition_number}`
       : sale.item_type === 'open_edition'
-        ? ` · open edition #${sale.open_edition_number}`
+        ? ` Â· open edition #${sale.open_edition_number}`
         : '';
-    return `${sale.sale_number} · ${sale.artwork_slug} · ${kind}${edition}`;
+    return `${sale.sale_number} Â· ${sale.artwork_slug} Â· ${kind}${edition}`;
   }
 
   function renderSalesList(container) {
@@ -254,7 +254,7 @@
       const title = element('strong', saleDescription(sale));
       const detail = element(
         'p',
-        `${sale.buyer_name}${sale.buyer_email ? ` · ${sale.buyer_email}` : ''} · ${sale.sale_date} · ${formatPrice(sale.price, sale.currency)}`,
+        `${sale.buyer_name}${sale.buyer_email ? ` Â· ${sale.buyer_email}` : ''} Â· ${sale.sale_date} Â· ${formatPrice(sale.price, sale.currency)}`,
         'hint'
       );
       if (sale.status === 'cancelled') {
@@ -266,7 +266,7 @@
       row.append(element('p', sale.status === 'cancelled' ? 'Cancelled' : 'Active', 'hint'));
       if (sale.receipt_printed_at) row.append(element('p', `Printed ${new Date(sale.receipt_printed_at).toLocaleString()}`, 'hint'));
       if (sale.receipt_emailed_at) row.append(element('p', `Emailed ${new Date(sale.receipt_emailed_at).toLocaleString()}`, 'hint'));
-      const receipt = element('button', 'Receipt', 'btn');
+      const receipt = element('button', 'Invoice', 'btn');
       receipt.type = 'button';
       receipt.addEventListener('click', () => openReceiptDialog(sale));
       row.append(receipt);
@@ -326,7 +326,7 @@
   async function exportSales(button) {
     button.disabled = true;
     try {
-      setStatus('Loading sales for Excel export…');
+      setStatus('Loading sales for Excel exportâ€¦');
       const [xlsx, exceljs] = await Promise.all([ensureSheetJs(), ensureExcelJsLibrary()]);
       const all = [];
       let totalSales = 0;
@@ -339,7 +339,7 @@
             break;
           } catch (error) {
             if (error.status !== 429 || attempt >= 2) throw error;
-            setStatus('Sales service is busy; waiting before continuing the export…');
+            setStatus('Sales service is busy; waiting before continuing the exportâ€¦');
             await new Promise(resolve => setTimeout(resolve, 61_000));
           }
         }
@@ -348,7 +348,7 @@
         if (!result.sales.length && all.length < totalSales) throw new Error('Sales changed during export. Please try again.');
         all.push(...result.sales);
         nextPage++;
-        setStatus(`Loading sales for Excel export… ${all.length} of ${totalSales}`);
+        setStatus(`Loading sales for Excel exportâ€¦ ${all.length} of ${totalSales}`);
       } while (all.length < totalSales);
       if (all.length !== totalSales || new Set(all.map(sale => sale.sale_number)).size !== all.length) {
         throw new Error('Sales changed during export. Please try again.');
@@ -357,7 +357,7 @@
       const headers = [
         'Sale number', 'Sale date', 'Artwork slug', 'Artwork title', 'Item type',
         'Edition number', 'Buyer name', 'Buyer email', 'Price', 'Currency',
-        'Status', 'Notes', 'Receipt printed at', 'Receipt emailed at'
+        'Status', 'Notes', 'Invoice printed at', 'Invoice emailed at'
       ];
       const rows = all.map(sale => [
         sale.sale_number, new Date(`${sale.sale_date}T00:00:00Z`), sale.artwork_slug,
@@ -450,7 +450,7 @@
 
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true;
-    setStatus('Recording sale…');
+    setStatus('Recording saleâ€¦');
     let recorded;
     try {
       recorded = await apiRequest('/api/admin/sales', {
@@ -503,11 +503,11 @@
     const html = await apiRequest(`/api/admin/sales/receipt?saleNumber=${encodeURIComponent(sale.sale_number)}`, {}, 'text');
     const frame = element('iframe');
     frame.hidden = true;
-    frame.setAttribute('title', 'Receipt for printing');
+    frame.setAttribute('title', 'Invoice for printing');
     frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
     const loaded = new Promise((resolve, reject) => {
       frame.onload = resolve;
-      frame.onerror = () => reject(new Error('Could not prepare the receipt for printing.'));
+      frame.onerror = () => reject(new Error('Could not prepare the invoice for printing.'));
     });
     frame.srcdoc = html;
     container.append(frame);
@@ -515,7 +515,7 @@
     if (!frame.contentWindow) throw new Error('Could not open the print dialog.');
     frame.contentWindow.focus();
     frame.contentWindow.print();
-    setStatus('Print dialog opened. Saving the print record…');
+    setStatus('Print dialog opened. Saving the print recordâ€¦');
     try {
       const result = await apiRequest('/api/admin/sales/receipt/printed', {
         method: 'POST', body: JSON.stringify({ saleNumber: sale.sale_number })
@@ -530,16 +530,16 @@
     const modal = document.getElementById('modal');
     modal.replaceChildren();
     const heading = element('h2', 'Sale recorded');
-    if (sale.status === 'cancelled') heading.textContent = 'Cancelled sale receipt';
+    if (sale.status === 'cancelled') heading.textContent = 'Cancelled sale invoice';
     const artwork = artworks.find(item => item.slug === sale.artwork_slug);
-    const summary = element('p', `${sale.sale_number} · ${artwork?.title || sale.artwork_slug} · ${TYPES[sale.item_type] || sale.item_type} · ${sale.buyer_name} · ${formatPrice(sale.price, sale.currency)}`);
+    const summary = element('p', `${sale.sale_number} Â· ${artwork?.title || sale.artwork_slug} Â· ${TYPES[sale.item_type] || sale.item_type} Â· ${sale.buyer_name} Â· ${formatPrice(sale.price, sale.currency)}`);
     const receiptStatus = element('div', '', 'status-banner info');
     receiptStatus.setAttribute('role', 'status');
     receiptStatus.hidden = true;
     status = receiptStatus;
     const email = input('receipt-buyer-email', 'email', sale.buyer_email || '');
     email.maxLength = 254;
-    const emailField = createField('Buyer email for receipt', email, 'Confirm the email address before sending.');
+    const emailField = createField('Buyer email for invoice', email, 'Confirm the email address before sending.');
     const actions = element('div', undefined, 'modal-footer');
     const print = element('button', 'Print', 'btn');
     const send = element('button', 'Email', 'btn');
@@ -553,7 +553,7 @@
       let printed = false;
       try {
         if (shouldPrint) {
-          setStatus('Preparing receipt for printing…');
+          setStatus('Preparing invoice for printingâ€¦');
           await printReceipt(sale, modal);
           printed = true;
         }
@@ -562,11 +562,11 @@
             throw new Error('Enter a valid buyer email address.');
           }
           const warning = sale.status === 'cancelled' ? ' This sale is CANCELLED.' : '';
-          if (!window.confirm(`Email the receipt to ${email.value.trim()}?${warning}`)) {
+          if (!window.confirm(`Email the invoice to ${email.value.trim()}?${warning}`)) {
             setStatus(printed ? 'Print dialog opened. Email was not sent.' : 'Email was not sent.');
             return;
           }
-          setStatus(printed ? 'Print dialog opened. Sending email…' : 'Sending receipt email…');
+          setStatus(printed ? 'Print dialog opened. Sending emailâ€¦' : 'Sending invoice emailâ€¦');
           await apiRequest('/api/admin/sales/receipt/email', {
             method: 'POST',
             body: JSON.stringify({
@@ -577,8 +577,8 @@
           });
           if (!sale.buyer_email) sale.buyer_email = email.value.trim();
         }
-        setStatus(printed && shouldEmail ? 'Print dialog opened. Receipt email sent.'
-          : printed ? 'Print dialog opened.' : 'Receipt email sent.', 'success');
+        setStatus(printed && shouldEmail ? 'Print dialog opened. Invoice email sent.'
+          : printed ? 'Print dialog opened.' : 'Invoice email sent.', 'success');
       } catch (error) {
         setStatus(`${printed ? 'Print dialog opened. ' : ''}${error.message}`, 'error');
       } finally {
@@ -596,7 +596,7 @@
       ? '\n\nThis open-edition number will not be reused.'
       : '';
     if (!window.confirm(`Cancel ${sale.sale_number} for ${sale.buyer_name}?${openEditionNote}`)) return;
-    setStatus('Cancelling sale…');
+    setStatus('Cancelling saleâ€¦');
     try {
       const result = await apiRequest('/api/admin/sales/cancel', {
         method: 'POST',
@@ -665,7 +665,7 @@
     modal.append(heading, hint, tabs, status, formContainer, recentContainer, footer);
     renderForm(formContainer);
     document.getElementById('modal-overlay').hidden = false;
-    setStatus('Loading artworks and recent sales…');
+    setStatus('Loading artworks and recent salesâ€¦');
     try {
       await Promise.all([loadArtworks(), loadSales(1)]);
       setStatus(artworks.some(artwork => artwork.available)

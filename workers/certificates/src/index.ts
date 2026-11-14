@@ -262,7 +262,7 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
   if (request.method === 'POST') {
     const body = parseJson(await request.text());
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return jsonResponse({ error: 'Enter receipt details.' }, 400);
+      return jsonResponse({ error: 'Enter invoice details.' }, 400);
     }
     input = body as Record<string, unknown>;
   }
@@ -280,12 +280,12 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
   }
   const missingSeller = missingSellerVariables(env);
   if (missingSeller.length) {
-    return jsonResponse({ error: `Receipt seller settings missing: ${missingSeller.join(', ')}.` }, 503);
+    return jsonResponse({ error: `Invoice seller settings missing: ${missingSeller.join(', ')}.` }, 503);
   }
   sale.invoice_number = await ensureInvoiceNumber(env.DB, sale.sale_number);
   if (path.endsWith('/email') && request.method === 'POST') {
     if (sale.status === 'cancelled' && input.confirmCancelled !== true) {
-      return jsonResponse({ error: 'Confirm before emailing a cancelled receipt.' }, 400);
+      return jsonResponse({ error: 'Confirm before emailing a cancelled invoice.' }, 400);
     }
     const email = input.buyerEmail === undefined ? sale.buyer_email : input.buyerEmail;
     if (typeof email !== 'string' || !email.trim()) {
@@ -296,7 +296,7 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
       return jsonResponse({ error: 'Enter a valid buyer email address.' }, 400);
     }
     if (!env.RESEND_API_KEY || !env.RECEIPT_FROM_ADDRESS) {
-      return jsonResponse({ error: 'Receipt email is not configured.' }, 503);
+      return jsonResponse({ error: 'Invoice email is not configured.' }, 503);
     }
     const artwork = await receiptArtwork(request, env, sale.artwork_slug);
     const receipt = renderReceipt({ ...sale, buyer_email: recipient }, artwork, env);
@@ -309,15 +309,15 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
           from: env.RECEIPT_FROM_ADDRESS,
           to: [recipient],
           ...(env.RECEIPT_REPLY_TO?.trim() ? { reply_to: env.RECEIPT_REPLY_TO.trim() } : {}),
-          subject: `Your receipt from Vlement – ${sale.sale_number}`,
+          subject: `Your receipt from Vlement â€“ ${sale.sale_number}`,
           html: receipt.html,
           text: receipt.text,
         }),
       });
     } catch {
-      return jsonResponse({ error: 'Receipt email could not be sent by the provider.' }, 502);
+      return jsonResponse({ error: 'Invoice email could not be sent by the provider.' }, 502);
     }
-    if (!response.ok) return jsonResponse({ error: 'Receipt email could not be sent by the provider.' }, 502);
+    if (!response.ok) return jsonResponse({ error: 'Invoice email could not be sent by the provider.' }, 502);
     try {
       await env.DB.prepare(
         'UPDATE sales SET receipt_emailed_at = ?, buyer_email = COALESCE(NULLIF(buyer_email, \'\'), ?) WHERE sale_number = ?',

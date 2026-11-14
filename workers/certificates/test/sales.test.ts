@@ -41,7 +41,7 @@ function githubApi(artworks: Record<string, TestArtwork>) {
         `available: ${artwork.available === false ? 'false' : 'true'}`,
         ...(artwork.editionType ? [`editionType: ${artwork.editionType}`] : []),
         ...(artwork.editionSize ? [`editionSize: ${artwork.editionSize}`] : []),
-        `price: ${artwork.price || '£100'}`,
+        `price: ${artwork.price || 'Â£100'}`,
       ];
       const markdown = `---\n${fields.join('\n')}\n---\n`;
       return Response.json({
@@ -388,7 +388,7 @@ describe('sales endpoints', () => {
           `https://certificates.test${receiptUrl}`, { headers: headers() },
         ), receiptEnv);
         expect(response.status).toBe(503);
-        expect(await response.json()).toEqual({ error: `Receipt seller settings missing: ${missing}.` });
+        expect(await response.json()).toEqual({ error: `Invoice seller settings missing: ${missing}.` });
         receiptEnv[missing] = previous;
       }
       const sellerSettings = {
@@ -403,7 +403,7 @@ describe('sales endpoints', () => {
       ), receiptEnv);
       expect(missingAllResponse.status).toBe(503);
       expect(await missingAllResponse.json()).toEqual({
-        error: 'Receipt seller settings missing: SELLER_NAME, SELLER_WEBSITE, SELLER_EMAIL.',
+        error: 'Invoice seller settings missing: SELLER_NAME, SELLER_WEBSITE, SELLER_EMAIL.',
       });
       Object.assign(receiptEnv, sellerSettings);
       const hidden = await (await get(receiptUrl)).text();

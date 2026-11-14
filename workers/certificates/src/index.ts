@@ -55,10 +55,20 @@ function corsHeaders(request: Request, env: Env): Headers {
     'Access-Control-Expose-Headers': 'Content-Disposition',
     'Access-Control-Max-Age': '600',
   });
-  if (request.headers.get('Origin') === env.ALLOWED_ORIGIN) {
-    headers.set('Access-Control-Allow-Origin', env.ALLOWED_ORIGIN);
+  const allowedOrigin = matchAllowedOrigin(request.headers.get('Origin'), env);
+  if (allowedOrigin) {
+    headers.set('Access-Control-Allow-Origin', allowedOrigin);
   }
   return headers;
+}
+
+function matchAllowedOrigin(origin: string | null, env: Env): string | null {
+  if (!origin) return null;
+  const allowed = String(env.ALLOWED_ORIGIN || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return allowed.includes(origin) ? origin : null;
 }
 
 function withCors(response: Response, request: Request, env: Env): Response {
@@ -1768,11 +1778,11 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const origin = request.headers.get('Origin');
-    if (origin && origin !== env.ALLOWED_ORIGIN) {
+    if (origin && !matchAllowedOrigin(origin, env)) {
       return jsonResponse({ error: 'Not found.' }, 404);
     }
     if (request.method === 'OPTIONS') {
-      if (origin !== env.ALLOWED_ORIGIN) return new Response(null, { status: 403 });
+      if (!matchAllowedOrigin(origin, env)) return new Response(null, { status: 403 });
       return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     }
     if (url.pathname === '/health' && request.method === 'GET') {

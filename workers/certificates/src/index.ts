@@ -152,6 +152,7 @@ function validateSaleRequest(input: unknown): {
   buyerEmail: string | null;
   saleDate: string;
   price: number;
+  delivery: number;
   currency: string;
   notes: string;
 } {
@@ -191,6 +192,11 @@ function validateSaleRequest(input: unknown): {
   if (typeof body.price !== 'number' || !Number.isFinite(price) || price < 0) {
     throw new Error('Enter a valid price.');
   }
+  const deliveryInput = body.delivery === undefined || body.delivery === null || body.delivery === '' ? 0 : body.delivery;
+  if (typeof deliveryInput !== 'number' || !Number.isFinite(deliveryInput) || deliveryInput < 0) {
+    throw new Error('Enter a valid delivery amount.');
+  }
+  const delivery = Math.round(deliveryInput * 100) / 100;
   const currency = requiredText(body.currency || 'GBP', 'currency', 3).toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) throw new Error('Enter a valid three-letter currency.');
   if (body.notes !== undefined && body.notes !== null && typeof body.notes !== 'string') {
@@ -199,7 +205,7 @@ function validateSaleRequest(input: unknown): {
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   if (notes.length > 1000) throw new Error('Notes must be 1000 characters or fewer.');
 
-  return { artworkSlug, itemType, editionNumber, buyerName, buyerEmail, saleDate, price, currency, notes };
+  return { artworkSlug, itemType, editionNumber, buyerName, buyerEmail, saleDate, price, delivery, currency, notes };
 }
 
 function githubTokenFromRequest(request: Request): string {
@@ -247,7 +253,7 @@ async function receiptArtwork(request: Request, env: Env, slug: string) {
 async function receiptSale(env: Env, saleNumber: string): Promise<ReceiptSale | null> {
   return env.DB.prepare(
     `SELECT sale_number, artwork_slug, item_type, edition_number, buyer_name, buyer_email,
-            sale_date, price, currency, notes, status, invoice_number FROM sales WHERE sale_number = ?`,
+            sale_date, price, delivery, currency, notes, status, invoice_number FROM sales WHERE sale_number = ?`,
   ).bind(saleNumber).first<ReceiptSale>();
 }
 
@@ -309,7 +315,7 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
           from: env.RECEIPT_FROM_ADDRESS,
           to: [recipient],
           ...(env.RECEIPT_REPLY_TO?.trim() ? { reply_to: env.RECEIPT_REPLY_TO.trim() } : {}),
-          subject: `Your receipt from Vlement â€“ ${sale.sale_number}`,
+          subject: `Your receipt from Vlement – ${sale.sale_number}`,
           html: receipt.html,
           text: receipt.text,
         }),
@@ -512,7 +518,7 @@ async function recordSale(request: Request, env: Env): Promise<Response> {
     env.DB.prepare(
       `INSERT INTO sales
         (id, artwork_slug, item_type, edition_number, open_edition_number, sale_number,
-         buyer_name, buyer_email, sale_date, price, currency, notes, status, cancelled_at,
+         buyer_name, buyer_email, sale_date, price, delivery, currency, notes, status, cancelled_at,
          certificate_id, created_at, created_by)
        SELECT ?, ?, ?, ?, CASE WHEN ? = 'open_edition'
                     THEN (SELECT value FROM open_edition_sales_counters WHERE artwork_slug = ?)
@@ -521,17 +527,17 @@ async function recordSale(request: Request, env: Env): Promise<Response> {
                (SELECT certificate_number FROM certificates WHERE id = ?),
                printf('VL-%s-%04d-%04d', ?, ?, counters.value)
              ),
-             ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?
+             ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?
         FROM counters
         WHERE certificate_type = ? AND year = ?
        RETURNING id, artwork_slug, item_type, edition_number, open_edition_number,
-                 sale_number, buyer_name, buyer_email, sale_date, price, currency,
+                 sale_number, buyer_name, buyer_email, sale_date, price, delivery, currency,
                  notes, status, cancelled_at, certificate_id, created_at, created_by`,
     ).bind(
       id, sale.artworkSlug, sale.itemType, sale.editionNumber,
       sale.itemType, sale.artworkSlug,
       matchingCertificate?.id || null,
-      prefix, year, sale.buyerName, sale.buyerEmail, sale.saleDate, sale.price,
+      prefix, year, sale.buyerName, sale.buyerEmail, sale.saleDate, sale.price, sale.delivery,
       sale.currency, sale.notes, matchingCertificate?.id || null, now, env.ALLOWED_GITHUB_USER_ID || '',
       sale.itemType, year,
     ),
@@ -605,7 +611,7 @@ async function cancelSale(request: Request, env: Env): Promise<Response> {
   if (results.some(result => !result.success)) throw new Error('Could not cancel the sale.');
   const sale = await env.DB.prepare(
     `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
-            sale_number, buyer_name, buyer_email, sale_date, price, currency, notes,
+            sale_number, buyer_name, buyer_email, sale_date, price, delivery, currency, notes,
             status, cancelled_at, certificate_id, created_at, created_by
        FROM sales WHERE id = ?`,
   ).bind(existing.id).first<Record<string, unknown>>();
@@ -1071,7 +1077,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     const offset = (requestedPage - 1) * requestedLimit;
     const { results } = await env.DB.prepare(
       `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
-              sale_number, buyer_name, buyer_email, sale_date, price, currency, notes,
+              sale_number, buyer_name, buyer_email, sale_date, price, delivery, currency, notes,
               status, cancelled_at, certificate_id, created_at, created_by,
               receipt_printed_at, receipt_emailed_at
          FROM sales ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,

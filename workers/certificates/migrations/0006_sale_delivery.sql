@@ -1,0 +1,1 @@
+ALTER TABLE sales ADD COLUMN delivery REAL NOT NULL DEFAULT 0 CHECK (delivery >= 0);

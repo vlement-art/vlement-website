@@ -10,6 +10,7 @@ export interface ReceiptSale {
   buyer_email: string | null;
   sale_date: string;
   price: number;
+  delivery?: number;
   currency: string;
   notes: string;
   status: 'active' | 'cancelled';
@@ -42,7 +43,7 @@ export function renderReceipt(
     style: 'currency', currency: sale.currency,
   }).format(sale.price);
   const money = new Intl.NumberFormat('en-GB', { style: 'currency', currency: sale.currency });
-  const delivery = 0;
+  const delivery = Number(sale.delivery) || 0;
   const total = money.format(sale.price + delivery);
   const [year, month, day] = sale.sale_date.split('-');
   const saleDate = `${day}-${month}-${year}`;
@@ -60,7 +61,7 @@ export function renderReceipt(
   const label = 'font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#7b8794;margin:0 0 6px';
   const cell = 'padding:14px 16px;border-bottom:1px solid #e4e7eb;vertical-align:top';
   const logo = VAA_LOGO_DATA_URI
-    ? `<td style="vertical-align:middle;padding-right:14px"><img src="${VAA_LOGO_DATA_URI}" width="90" alt="Visual Artists Association logo" style="width:90px;height:auto;display:block"></td>`
+    ? `<td style="vertical-align:middle;padding-right:14px"><img src="${VAA_LOGO_DATA_URI}" alt="Visual Artists Association logo" style="width:46mm;height:auto;display:block"></td>`
     : '';
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Invoice_${escapeHtml(invoiceNumber)}</title><style>@page { size: A4; margin: 0 } html, body { margin: 0; padding: 0 } body { -webkit-print-color-adjust: exact; print-color-adjust: exact }</style></head>
 <body style="margin:0;background:#fff;color:#1f2933;font-family:Helvetica,Arial,sans-serif">

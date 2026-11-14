@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it, vi } from 'vitest';
 import worker from '../src';
+import { renderReceipt } from '../src/receipt';
 import type { Env } from '../src/types';
 
 type TestArtwork = {
@@ -41,7 +42,7 @@ function githubApi(artworks: Record<string, TestArtwork>) {
         `available: ${artwork.available === false ? 'false' : 'true'}`,
         ...(artwork.editionType ? [`editionType: ${artwork.editionType}`] : []),
         ...(artwork.editionSize ? [`editionSize: ${artwork.editionSize}`] : []),
-        `price: ${artwork.price || 'Â£100'}`,
+        `price: ${artwork.price || '£100'}`,
       ];
       const markdown = `---\n${fields.join('\n')}\n---\n`;
       return Response.json({
@@ -168,6 +169,39 @@ describe('sales endpoints', () => {
       }));
       expect(invalidEmail.status).toBe(400);
       expect(api).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('defaults delivery to 0, adds it to the invoice total, and rejects negative delivery', async () => {
+    const slug = `delivery-${crypto.randomUUID().slice(0, 8)}`;
+    vi.stubGlobal('fetch', githubApi({
+      [slug]: { title: 'Delivery artwork', category: 'Print', editionType: 'open' },
+    }));
+    try {
+      const negative = await postSale(headers(), saleBody(slug, 'open_edition', { delivery: -1 }));
+      expect(negative.status).toBe(400);
+
+      const defaulted = await postSale(headers(), saleBody(slug, 'open_edition'));
+      expect(defaulted.status).toBe(201);
+      const { sale: plain } = await defaulted.json() as { sale: Record<string, unknown> };
+      expect(plain.delivery).toBe(0);
+
+      const shipped = await postSale(headers(), saleBody(slug, 'open_edition', { delivery: 12.5 }));
+      expect(shipped.status).toBe(201);
+      const { sale } = await shipped.json() as { sale: { sale_number: string; delivery: number; price: number } };
+      expect(sale.delivery).toBe(12.5);
+
+      const seller = { SELLER_NAME: 'Jose Rodrigues', SELLER_WEBSITE: 'https://vlement.com', SELLER_EMAIL: 'sales@vlement.com' } as Env;
+      const artwork = { title: 'Delivery artwork', editionSize: null };
+      const base = { ...sale, artwork_slug: slug, item_type: 'open_edition' as const, edition_number: null,
+        buyer_name: 'Test buyer', buyer_email: null, sale_date: '2026-11-04', currency: 'GBP', notes: '',
+        status: 'active' as const, invoice_number: 'VL-048213' };
+      expect(renderReceipt({ ...base, delivery: 0 }, artwork, seller).text).toContain('Total due: £100.00');
+      const withDelivery = renderReceipt(base, artwork, seller).text;
+      expect(withDelivery).toContain('Delivery: £12.50');
+      expect(withDelivery).toContain('Total due: £112.50');
     } finally {
       vi.unstubAllGlobals();
     }

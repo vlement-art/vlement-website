@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it, vi } from 'vitest';
 import worker from '../src';
+import { renderReceipt } from '../src/receipt';
 import type { Env } from '../src/types';
 
 type TestArtwork = {
@@ -47,7 +48,7 @@ function githubApi(artworks: Record<string, TestArtwork>) {
       return Response.json({
         name: `${file[1]}.md`,
         type: 'file',
-        content: btoa(markdown),
+        content: btoa(String.fromCharCode(...new TextEncoder().encode(markdown))),
       });
     }
     return Response.json({ message: 'Not found' }, { status: 404 });
@@ -168,6 +169,39 @@ describe('sales endpoints', () => {
       }));
       expect(invalidEmail.status).toBe(400);
       expect(api).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('defaults delivery to 0, adds it to the invoice total, and rejects negative delivery', async () => {
+    const slug = `delivery-${crypto.randomUUID().slice(0, 8)}`;
+    vi.stubGlobal('fetch', githubApi({
+      [slug]: { title: 'Delivery artwork', category: 'Print', editionType: 'open' },
+    }));
+    try {
+      const negative = await postSale(headers(), saleBody(slug, 'open_edition', { delivery: -1 }));
+      expect(negative.status).toBe(400);
+
+      const defaulted = await postSale(headers(), saleBody(slug, 'open_edition'));
+      expect(defaulted.status).toBe(201);
+      const { sale: plain } = await defaulted.json() as { sale: Record<string, unknown> };
+      expect(plain.delivery).toBe(0);
+
+      const shipped = await postSale(headers(), saleBody(slug, 'open_edition', { delivery: 12.5 }));
+      expect(shipped.status).toBe(201);
+      const { sale } = await shipped.json() as { sale: { sale_number: string; delivery: number; price: number } };
+      expect(sale.delivery).toBe(12.5);
+
+      const seller = { SELLER_NAME: 'Jose Rodrigues', SELLER_WEBSITE: 'https://vlement.com', SELLER_EMAIL: 'sales@vlement.com' } as Env;
+      const artwork = { title: 'Delivery artwork', editionSize: null };
+      const base = { ...sale, artwork_slug: slug, item_type: 'open_edition' as const, edition_number: null,
+        buyer_name: 'Test buyer', buyer_email: null, sale_date: '2026-11-04', currency: 'GBP', notes: '',
+        status: 'active' as const, invoice_number: 'VL-048213' };
+      expect(renderReceipt({ ...base, delivery: 0 }, artwork, seller).text).toContain('Total due: £100.00');
+      const withDelivery = renderReceipt(base, artwork, seller).text;
+      expect(withDelivery).toContain('Delivery: £12.50');
+      expect(withDelivery).toContain('Total due: £112.50');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -349,7 +383,7 @@ describe('sales endpoints', () => {
   it('renders escaped receipts, records print and email actions, and protects cancelled receipts', async () => {
     const slug = `receipt-${crypto.randomUUID().slice(0, 8)}`;
     const github = githubApi({
-      [slug]: { title: 'Limited & artwork', category: 'Print', editionType: 'limited', editionSize: 5 },
+      [slug]: { title: 'Limited & Soñar artwork', category: 'Print', editionType: 'limited', editionSize: 5 },
     });
     const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       Response.json({ id: 'provider-id' }));
@@ -388,7 +422,7 @@ describe('sales endpoints', () => {
           `https://certificates.test${receiptUrl}`, { headers: headers() },
         ), receiptEnv);
         expect(response.status).toBe(503);
-        expect(await response.json()).toEqual({ error: `Receipt seller settings missing: ${missing}.` });
+        expect(await response.json()).toEqual({ error: `Invoice seller settings missing: ${missing}.` });
         receiptEnv[missing] = previous;
       }
       const sellerSettings = {
@@ -403,12 +437,12 @@ describe('sales endpoints', () => {
       ), receiptEnv);
       expect(missingAllResponse.status).toBe(503);
       expect(await missingAllResponse.json()).toEqual({
-        error: 'Receipt seller settings missing: SELLER_NAME, SELLER_WEBSITE, SELLER_EMAIL.',
+        error: 'Invoice seller settings missing: SELLER_NAME, SELLER_WEBSITE, SELLER_EMAIL.',
       });
       Object.assign(receiptEnv, sellerSettings);
       const hidden = await (await get(receiptUrl)).text();
       expect(hidden).toContain('&lt;script&gt;buyer&lt;/script&gt;');
-      expect(hidden).toContain('Limited &amp; artwork');
+      expect(hidden).toContain('Limited &amp; Soñar artwork');
       expect(hidden).toContain('Edition 1 of 5');
       expect(hidden).not.toContain('onerror');
       const visible = await (await get(`${receiptUrl}&includeNotes=1`)).text();
@@ -433,6 +467,20 @@ describe('sales endpoints', () => {
       expect(sent.text).toContain('Edition 1 of 5');
       expect(sent.html).not.toContain('onerror');
       expect(sent).not.toHaveProperty('reply_to');
+      const invoiceNo = (await env.DB.prepare('SELECT invoice_number FROM sales WHERE sale_number = ?')
+        .bind(number).first<{ invoice_number: string }>())!.invoice_number;
+      expect(invoiceNo).toMatch(/^VL-\d{6}$/);
+      const withAttachment = sent as unknown as { subject: string; attachments: Array<{ filename: string; content: string }> };
+      expect(withAttachment.subject).toBe(`Invoice ${invoiceNo}`);
+      expect(withAttachment.attachments).toHaveLength(1);
+      expect(withAttachment.attachments[0].filename).toBe(`Invoice_${invoiceNo}.pdf`);
+      expect(atob(withAttachment.attachments[0].content).startsWith('%PDF')).toBe(true);
+      const pdfResponse = await get(`/api/admin/sales/invoice-pdf?saleNumber=${encodeURIComponent(number)}`);
+      expect(pdfResponse.status).toBe(200);
+      expect(pdfResponse.headers.get('Content-Type')).toBe('application/pdf');
+      expect(pdfResponse.headers.get('Content-Disposition')).toContain(`filename="Invoice_${invoiceNo}.pdf"`);
+      expect(new TextDecoder().decode((await pdfResponse.arrayBuffer()).slice(0, 5))).toBe('%PDF-');
+      expect((await get('/api/admin/sales/invoice-pdf?saleNumber=x', false)).status).toBe(401);
       const listed = await (await get('/api/admin/sales?per_page=100')).json() as {
         sales: Array<{ sale_number: string; buyer_email: string; receipt_printed_at: string; receipt_emailed_at: string }>;
       };

@@ -29,3 +29,6 @@ npm-debug.log*
 
 # original high-res source images — see README > Images before removing this line
 public/images/originals/
+
+# local wrangler/D1 state
+.wrangler/

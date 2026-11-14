@@ -3,6 +3,8 @@ import type { CertificateType, Env, IssueRequest } from './types';
 import { D1BackupWorkflow } from './backup-workflow';
 import { handleArtworkCodeRequest } from './artwork-codes';
 import { renderReceipt } from './receipt';
+import { ensureInvoiceNumber } from './invoice-number';
+import { invoiceFileName, renderInvoicePdf } from './invoice-pdf';
 import type { ReceiptSale } from './receipt';
 export { D1BackupWorkflow };
 
@@ -50,6 +52,7 @@ function corsHeaders(request: Request, env: Env): Headers {
     'Vary': 'Origin',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Expose-Headers': 'Content-Disposition',
     'Access-Control-Max-Age': '600',
   });
   if (request.headers.get('Origin') === env.ALLOWED_ORIGIN) {
@@ -151,6 +154,7 @@ function validateSaleRequest(input: unknown): {
   buyerEmail: string | null;
   saleDate: string;
   price: number;
+  delivery: number;
   currency: string;
   notes: string;
 } {
@@ -190,6 +194,11 @@ function validateSaleRequest(input: unknown): {
   if (typeof body.price !== 'number' || !Number.isFinite(price) || price < 0) {
     throw new Error('Enter a valid price.');
   }
+  const deliveryInput = body.delivery === undefined || body.delivery === null || body.delivery === '' ? 0 : body.delivery;
+  if (typeof deliveryInput !== 'number' || !Number.isFinite(deliveryInput) || deliveryInput < 0) {
+    throw new Error('Enter a valid delivery amount.');
+  }
+  const delivery = Math.round(deliveryInput * 100) / 100;
   const currency = requiredText(body.currency || 'GBP', 'currency', 3).toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) throw new Error('Enter a valid three-letter currency.');
   if (body.notes !== undefined && body.notes !== null && typeof body.notes !== 'string') {
@@ -198,7 +207,7 @@ function validateSaleRequest(input: unknown): {
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   if (notes.length > 1000) throw new Error('Notes must be 1000 characters or fewer.');
 
-  return { artworkSlug, itemType, editionNumber, buyerName, buyerEmail, saleDate, price, currency, notes };
+  return { artworkSlug, itemType, editionNumber, buyerName, buyerEmail, saleDate, price, delivery, currency, notes };
 }
 
 function githubTokenFromRequest(request: Request): string {
@@ -246,7 +255,7 @@ async function receiptArtwork(request: Request, env: Env, slug: string) {
 async function receiptSale(env: Env, saleNumber: string): Promise<ReceiptSale | null> {
   return env.DB.prepare(
     `SELECT sale_number, artwork_slug, item_type, edition_number, buyer_name, buyer_email,
-            sale_date, price, currency, notes, status FROM sales WHERE sale_number = ?`,
+            sale_date, price, delivery, currency, notes, status, invoice_number FROM sales WHERE sale_number = ?`,
   ).bind(saleNumber).first<ReceiptSale>();
 }
 
@@ -261,7 +270,7 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
   if (request.method === 'POST') {
     const body = parseJson(await request.text());
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return jsonResponse({ error: 'Enter receipt details.' }, 400);
+      return jsonResponse({ error: 'Enter invoice details.' }, 400);
     }
     input = body as Record<string, unknown>;
   }
@@ -279,11 +288,12 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
   }
   const missingSeller = missingSellerVariables(env);
   if (missingSeller.length) {
-    return jsonResponse({ error: `Receipt seller settings missing: ${missingSeller.join(', ')}.` }, 503);
+    return jsonResponse({ error: `Invoice seller settings missing: ${missingSeller.join(', ')}.` }, 503);
   }
+  sale.invoice_number = await ensureInvoiceNumber(env.DB, sale.sale_number);
   if (path.endsWith('/email') && request.method === 'POST') {
     if (sale.status === 'cancelled' && input.confirmCancelled !== true) {
-      return jsonResponse({ error: 'Confirm before emailing a cancelled receipt.' }, 400);
+      return jsonResponse({ error: 'Confirm before emailing a cancelled invoice.' }, 400);
     }
     const email = input.buyerEmail === undefined ? sale.buyer_email : input.buyerEmail;
     if (typeof email !== 'string' || !email.trim()) {
@@ -294,10 +304,22 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
       return jsonResponse({ error: 'Enter a valid buyer email address.' }, 400);
     }
     if (!env.RESEND_API_KEY || !env.RECEIPT_FROM_ADDRESS) {
-      return jsonResponse({ error: 'Receipt email is not configured.' }, 503);
+      return jsonResponse({ error: 'Invoice email is not configured.' }, 503);
     }
     const artwork = await receiptArtwork(request, env, sale.artwork_slug);
-    const receipt = renderReceipt({ ...sale, buyer_email: recipient }, artwork, env);
+    const emailSale = { ...sale, buyer_email: recipient };
+    const receipt = renderReceipt(emailSale, artwork, env);
+    let pdfBase64: string;
+    try {
+      const pdfBytes = await renderInvoicePdf(emailSale, artwork, env);
+      let binary = '';
+      for (let i = 0; i < pdfBytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...pdfBytes.subarray(i, i + 0x8000));
+      }
+      pdfBase64 = btoa(binary);
+    } catch {
+      return jsonResponse({ error: 'The invoice PDF could not be created.' }, 500);
+    }
     let response: Response;
     try {
       response = await fetch('https://api.resend.com/emails', {
@@ -307,15 +329,16 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
           from: env.RECEIPT_FROM_ADDRESS,
           to: [recipient],
           ...(env.RECEIPT_REPLY_TO?.trim() ? { reply_to: env.RECEIPT_REPLY_TO.trim() } : {}),
-          subject: `Your receipt from Vlement – ${sale.sale_number}`,
+          subject: `Invoice ${sale.invoice_number}`,
           html: receipt.html,
           text: receipt.text,
+          attachments: [{ filename: invoiceFileName(sale.invoice_number!), content: pdfBase64 }],
         }),
       });
     } catch {
-      return jsonResponse({ error: 'Receipt email could not be sent by the provider.' }, 502);
+      return jsonResponse({ error: 'Invoice email could not be sent by the provider.' }, 502);
     }
-    if (!response.ok) return jsonResponse({ error: 'Receipt email could not be sent by the provider.' }, 502);
+    if (!response.ok) return jsonResponse({ error: 'Invoice email could not be sent by the provider.' }, 502);
     try {
       await env.DB.prepare(
         'UPDATE sales SET receipt_emailed_at = ?, buyer_email = COALESCE(NULLIF(buyer_email, \'\'), ?) WHERE sale_number = ?',
@@ -330,6 +353,18 @@ async function handleReceipt(request: Request, env: Env, path: string): Promise<
     const receipt = renderReceipt(sale, artwork, env, url.searchParams.get('includeNotes') === '1');
     return new Response(receipt.html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  if (path === '/api/admin/sales/invoice-pdf' && request.method === 'GET') {
+    const artwork = await receiptArtwork(request, env, sale.artwork_slug);
+    const bytes = await renderInvoicePdf(sale, artwork, env);
+    return new Response(bytes, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${invoiceFileName(sale.invoice_number!)}"`,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
     });
   }
   return jsonResponse({ error: 'Not found.' }, 404);
@@ -510,7 +545,7 @@ async function recordSale(request: Request, env: Env): Promise<Response> {
     env.DB.prepare(
       `INSERT INTO sales
         (id, artwork_slug, item_type, edition_number, open_edition_number, sale_number,
-         buyer_name, buyer_email, sale_date, price, currency, notes, status, cancelled_at,
+         buyer_name, buyer_email, sale_date, price, delivery, currency, notes, status, cancelled_at,
          certificate_id, created_at, created_by)
        SELECT ?, ?, ?, ?, CASE WHEN ? = 'open_edition'
                     THEN (SELECT value FROM open_edition_sales_counters WHERE artwork_slug = ?)
@@ -519,17 +554,17 @@ async function recordSale(request: Request, env: Env): Promise<Response> {
                (SELECT certificate_number FROM certificates WHERE id = ?),
                printf('VL-%s-%04d-%04d', ?, ?, counters.value)
              ),
-             ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?
+             ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?
         FROM counters
         WHERE certificate_type = ? AND year = ?
        RETURNING id, artwork_slug, item_type, edition_number, open_edition_number,
-                 sale_number, buyer_name, buyer_email, sale_date, price, currency,
+                 sale_number, buyer_name, buyer_email, sale_date, price, delivery, currency,
                  notes, status, cancelled_at, certificate_id, created_at, created_by`,
     ).bind(
       id, sale.artworkSlug, sale.itemType, sale.editionNumber,
       sale.itemType, sale.artworkSlug,
       matchingCertificate?.id || null,
-      prefix, year, sale.buyerName, sale.buyerEmail, sale.saleDate, sale.price,
+      prefix, year, sale.buyerName, sale.buyerEmail, sale.saleDate, sale.price, sale.delivery,
       sale.currency, sale.notes, matchingCertificate?.id || null, now, env.ALLOWED_GITHUB_USER_ID || '',
       sale.itemType, year,
     ),
@@ -603,7 +638,7 @@ async function cancelSale(request: Request, env: Env): Promise<Response> {
   if (results.some(result => !result.success)) throw new Error('Could not cancel the sale.');
   const sale = await env.DB.prepare(
     `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
-            sale_number, buyer_name, buyer_email, sale_date, price, currency, notes,
+            sale_number, buyer_name, buyer_email, sale_date, price, delivery, currency, notes,
             status, cancelled_at, certificate_id, created_at, created_by
        FROM sales WHERE id = ?`,
   ).bind(existing.id).first<Record<string, unknown>>();
@@ -1049,7 +1084,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     await enforceSalesRateLimit(env);
   }
 
-  if ((request.method === 'GET' && path === '/api/admin/sales/receipt')
+  if ((request.method === 'GET' && ['/api/admin/sales/receipt', '/api/admin/sales/invoice-pdf'].includes(path))
     || (request.method === 'POST' && ['/api/admin/sales/receipt/printed', '/api/admin/sales/receipt/email'].includes(path))) {
     return handleReceipt(request, env, path);
   }
@@ -1069,7 +1104,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
     const offset = (requestedPage - 1) * requestedLimit;
     const { results } = await env.DB.prepare(
       `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
-              sale_number, buyer_name, buyer_email, sale_date, price, currency, notes,
+              sale_number, buyer_name, buyer_email, sale_date, price, delivery, currency, notes,
               status, cancelled_at, certificate_id, created_at, created_by,
               receipt_printed_at, receipt_emailed_at
          FROM sales ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,

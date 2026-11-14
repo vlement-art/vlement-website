@@ -1106,7 +1106,7 @@ async function adminRoute(request: Request, env: Env, path: string): Promise<Res
       `SELECT id, artwork_slug, item_type, edition_number, open_edition_number,
               sale_number, buyer_name, buyer_email, sale_date, price, delivery, currency, notes,
               status, cancelled_at, certificate_id, created_at, created_by,
-              receipt_printed_at, receipt_emailed_at
+              receipt_printed_at, receipt_emailed_at, invoice_number
          FROM sales ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
     ).bind(requestedLimit, offset).all<Record<string, unknown>>();
     const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM sales')

@@ -120,7 +120,8 @@ test('exports all pages as formatted Excel with real dates and cancelled styling
   const exportSales = Array.from({ length: 101 }, (_, index) => ({
     sale_number: `SALE-${index}`, sale_date: '2026-11-11', artwork_slug: 'print',
     item_type: 'open_edition', open_edition_number: index + 1,
-    buyer_name: 'Buyer', buyer_email: 'buyer@example.com', price: 12.5,
+    buyer_name: 'Buyer', buyer_email: 'buyer@example.com', price: 12.5, delivery: 2.5,
+    invoice_number: 'VL-048213',
     currency: 'GBP', status: index === 100 ? 'cancelled' : 'active',
     notes: '', receipt_printed_at: '2026-11-11T12:30:00.000Z', receipt_emailed_at: null,
   }));
@@ -135,11 +136,21 @@ test('exports all pages as formatted Excel with real dates and cancelled styling
   await workbook.xlsx.load(await blob.arrayBuffer());
   const sheet = workbook.getWorksheet('Sales');
   assert.equal(sheet.rowCount, 102);
-  assert.equal(sheet.getCell('B2').value.toISOString(), '2026-11-11T00:00:00.000Z');
-  assert.equal(sheet.getCell('M2').value.toISOString(), '2026-11-11T12:30:00.000Z');
-  assert.equal(sheet.getCell('I2').value, 12.5);
-  assert.equal(sheet.getCell('I2').numFmt, '0.00');
-  assert.equal(sheet.getCell('D2').value, 'Print');
+  const headers = sheet.getRow(1).values.slice(1);
+  const cell = (name, row = 2) => sheet.getCell(row, headers.indexOf(name) + 1);
+  assert.deepEqual(
+    headers.slice(8, 11).concat(headers[14]),
+    ['Price', 'Delivery', 'Total', 'Invoice number'],
+  );
+  assert.equal(cell('Sale date').value.toISOString(), '2026-11-11T00:00:00.000Z');
+  assert.equal(cell('Invoice printed at').value.toISOString(), '2026-11-11T12:30:00.000Z');
+  assert.equal(cell('Price').value, 12.5);
+  assert.equal(cell('Price').numFmt, '0.00');
+  assert.equal(cell('Delivery').value, 2.5);
+  assert.equal(cell('Total').value, 15);
+  assert.equal(cell('Total').numFmt, '0.00');
+  assert.equal(cell('Invoice number').value, 'VL-048213');
+  assert.equal(cell('Artwork title').value, 'Print');
   assert.equal(sheet.getCell('A1').font.bold, true);
   assert.equal(sheet.getCell('A102').font.strike, true);
   assert.equal(sheet.views[0].ySplit, 1);

@@ -25,3 +25,4 @@ displayOrder: 1
 ---
 
 Depiction of a hidden Caribbean Sea coast with heavy relief, intense combination of blue and earth colours
+

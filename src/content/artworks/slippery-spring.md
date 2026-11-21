@@ -11,15 +11,18 @@ editionSize: 50
 collection: Seasons
 summary: A seasonal exploration capturing the delicate transition of spring, its ephemeral beauty and subtle complexities
 image: /images/artwork/slippery-spring.webp
-thumbnail: /images/thumbnails/slippery-spring.webp
+thumbnail: /images/artwork/slippery-spring.webp
 altText: Flower artwork titled Slippery Spring
 featured: true
 available: true
 price: £110
 displayOrder: 50
 signed: true
-support: Hahnemühle Photo Rag Giclée
+support: Print Hahnemühle Photo Rag Giclée
+imageZoom: /images/artwork/slippery-spring.webp
+imageLabel: other
 ---
 
 A seasonal exploration that captures the delicate transition of spring with its ephemeral beauty and subtle complexities. Edition of 50. Certificate of authenticity included.
+
 

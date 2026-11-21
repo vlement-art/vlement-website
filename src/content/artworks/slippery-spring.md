@@ -3,7 +3,7 @@ title: Slippery Spring
 year: 2026
 width: 3456
 height: 5184
-medium: Hahnemühle Photo Rag Giclée
+medium: Print Hahnemühle Photo Rag Giclée
 dimensions: 30 × 42cm
 category: Print
 editionType: limited
@@ -24,5 +24,6 @@ imageLabel: other
 ---
 
 A seasonal exploration that captures the delicate transition of spring with its ephemeral beauty and subtle complexities. Edition of 50. Certificate of authenticity included.
+
 
 

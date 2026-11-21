@@ -3,7 +3,7 @@ title: La Luz
 year: 2024
 width: 3456
 height: 5184
-medium: Hahnemühle Photo Rag Giclée
+medium: Print Hahnemühle Photo Rag Giclée
 dimensions: 30 x 42cm
 category: Print
 collection: Luz
@@ -24,6 +24,7 @@ imageLabel: other
 ---
 
 A quiet study in light and shadow: a worn red book, a pencil, a candle, and a lone bulb illuminate a wooden table against the darkness.
+
 
 
 

@@ -1,6 +1,6 @@
 ---
 title: The men and The Beach
-year: 2021
+year: 2024
 width: 452
 height: 640
 medium: Impasto Acrylic on Panel
@@ -25,4 +25,5 @@ displayOrder: 1
 ---
 
 Depiction of a hidden Caribbean Sea coast with heavy relief, intense combination of blue and earth colours
+
 

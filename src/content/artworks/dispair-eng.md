@@ -3,7 +3,7 @@ title: Dispair -ENG
 year: 2025
 width: 422
 height: 640
-medium: Oil on Japanese andFabriano Paper
+medium: Oil on Japanese and Fabriano Paper
 dimensions: 32 x 42cm
 category: Original painting
 collection: Loneliness
@@ -18,7 +18,7 @@ featured: true
 available: true
 price: '75'
 editionType: original
-support: Oil on Japanese andFabriano Paper
+support: Oil on Japanese and Fabriano Paper
 signed: true
 displayOrder: 1
 ---
